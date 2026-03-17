@@ -688,6 +688,21 @@ INPUT ./chapters/54_uni_modules.tex
 INPUT ./chapters/54_uni_modules.tex
 INPUT chapters/54_uni_modules.tex
 INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/tfm/public/lm/ec-lmri10.tfm
+INPUT ./chapters/55_llm_agent_glossary.tex
+INPUT ./chapters/55_llm_agent_glossary.tex
+INPUT ./chapters/55_llm_agent_glossary.tex
+INPUT ./chapters/55_llm_agent_glossary.tex
+INPUT chapters/55_llm_agent_glossary.tex
+INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/tex/latex/lm/ts1lmr.fd
+INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/tex/latex/lm/ts1lmr.fd
+INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/tex/latex/lm/ts1lmr.fd
+INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/tfm/public/lm/ts1-lmr10.tfm
+INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/tex/latex/lm/t1lmtt.fd
+INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/tex/latex/lm/t1lmtt.fd
+INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/tex/latex/lm/t1lmtt.fd
+INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/tfm/public/lm/ec-lmtt10.tfm
+INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc
+INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/tfm/public/lm/ec-lmbx10.tfm
 INPUT main.aux
 INPUT ./main.out
 INPUT ./main.out
@@ -697,3 +712,4 @@ INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/type1/public/
 INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/type1/public/lm/lmr12.pfb
 INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/type1/public/lm/lmri10.pfb
 INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/type1/public/lm/lmsy10.pfb
+INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/type1/public/lm/lmtt10.pfb

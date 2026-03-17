@@ -5,21 +5,142 @@
 
 \subsection{Greedy, beam search, sampling}
 
-% TODO
+At each decoding step the model produces a probability distribution over the vocabulary.
+The decoding strategy determines how a token is selected from that distribution.
+
+\textbf{Greedy decoding} always selects $\arg\max_t P(t \mid \text{context})$. It is
+fast and deterministic but tends to produce repetitive, low-entropy output because the
+model commits to the single most probable path at every step, discarding all alternatives.
+
+\textbf{Beam search} maintains the top-$B$ candidate sequences (``beams'') in parallel.
+At each step every beam is extended with its top-$B$ continuations, and the global
+top-$B$ are kept. Final output is the highest-scoring complete sequence. Beam search
+trades $O(B)$ memory for more globally coherent text and is the default for machine
+translation; it tends to produce overly conservative text in open-ended generation.
+
+\textbf{Sampling} draws from the full (or truncated) distribution, enabling varied and
+creative output at the cost of occasional incoherence. Temperature, top-$k$, and top-$p$
+control where sampling takes place (see \S below).
+
+\begin{intuitionbox}
+  Greedy $\approx$ beam search with $B=1$; both are deterministic.
+  Sampling with temperature $T \to 0$ converges to greedy; $T \to \infty$ becomes uniform.
+\end{intuitionbox}
 
 \subsection{Temperature, top-k, top-p}
 
-% TODO
+These three hyperparameters reshape the distribution before sampling.
+
+\textbf{Temperature} $T$ scales the logits before the softmax:
+\[
+  P'(t) = \frac{\exp(z_t / T)}{\sum_{t'}\exp(z_{t'} / T)}
+\]
+$T < 1$ sharpens the distribution (more deterministic); $T > 1$ flattens it (more
+exploratory). Typical creative-writing values: $T \approx 0.7$--$1.0$; coding: $T \approx
+0.2$.
+
+\textbf{Top-$k$ sampling} keeps only the $k$ highest-probability tokens, renormalises,
+and samples. Prevents extremely unlikely tokens from being selected but the hard cutoff
+can still include incoherent tokens if the distribution is flat.
+
+\textbf{Top-$p$ (nucleus) sampling} (Holtzman et al.\ 2020) keeps the smallest set of
+tokens whose cumulative probability $\geq p$, then samples. The effective vocabulary size
+adapts to the confidence of the distribution: when the model is certain, only a few tokens
+make the nucleus; when uncertain, many tokens share probability mass and a larger nucleus
+is used. $p = 0.9$--$0.95$ is a common default.
+
+\begin{notebox}
+  Top-$p$ is generally preferred over top-$k$ for open-ended generation because it
+  adapts automatically. Using both simultaneously ($p$ + $k$) is also common as an
+  additional safety net.
+\end{notebox}
 
 \subsection{KV cache mechanics}
 
-% TODO
+During autoregressive generation, computing attention for every new token would require
+re-processing all preceding tokens. The \textbf{key-value (KV) cache} avoids this.
+
+\textbf{How it works.} On the first forward pass (prefill phase), the model computes
+$K$ and $V$ matrices for all input tokens and caches them. For every subsequent token
+generated (decode phase), only the new token's $Q$, $K$, $V$ are computed; the new
+$K$, $V$ vectors are appended to the cache and the full attention is computed using the
+stored history. No recalculation of past keys and values is needed.
+
+\textbf{Memory cost.} KV cache size $\propto$ \texttt{num\_layers} $\times$
+\texttt{num\_heads} $\times$ \texttt{head\_dim} $\times$ \texttt{seq\_len} $\times$
+\texttt{batch\_size}. For a 70B-parameter model serving 32K-token sequences in a batch
+of 16, KV cache can easily exceed 30\,GB --- the dominant memory consumer at inference
+time, not the weights themselves.
+
+\textbf{KV cache with GQA/MQA.} Grouped-Query Attention (GQA) and Multi-Query Attention
+(MQA) reduce the number of distinct $K$/$V$ heads, directly shrinking the KV cache
+without changing the model's output quality much. This is why Llama\,3 and Gemma adopt GQA.
+
+\textbf{PagedAttention and vLLM.} Traditional KV cache is allocated contiguously in GPU
+memory, causing two problems: (1) fragmentation --- reserved but unused space; (2) no
+sharing between sequences that share a common prefix (e.g.\ system-prompt batches).
+
+\begin{paperbox}[title={PagedAttention (Kwon et al.\ 2023)}]
+  Borrows OS virtual memory ideas. The KV cache is divided into fixed-size
+  \emph{blocks} (``pages'') that are mapped via a block table, analogous to page
+  tables in virtual memory. Blocks are allocated on demand and need not be contiguous
+  in physical GPU memory. Copy-on-write enables prefix sharing: multiple sequences
+  sharing the same system prompt use the same physical cache pages until they diverge.
+  \textbf{vLLM} is the production serving library built on PagedAttention.
+\end{paperbox}
+
+PagedAttention reduces memory fragmentation to under 4\,\% and roughly doubles serving
+throughput compared with static pre-allocation.
 
 \subsection{Speculative decoding}
 
-% TODO
+\textbf{Bottleneck insight.} LLM decode speed is memory-bandwidth-bound, not
+compute-bound. Each decode step loads the full model weights from HBM to feed just a
+single token --- utilisation of GPU tensor cores is low. Speculative decoding reframes
+the problem to generate multiple tokens per weight-load.
+
+\textbf{Algorithm.}
+\begin{enumerate}
+  \item A small \emph{draft model} (e.g.\ 7B) autoregressively generates $k$ candidate
+    tokens cheaply.
+  \item The large \emph{target model} (e.g.\ 70B) processes all $k$ tokens in a single
+    parallel forward pass, producing probability distributions for each position.
+  \item Each draft token is accepted or rejected via token-level rejection sampling: if
+    the draft distribution $q$ is ``consistent'' with the target $p$, the token is
+    accepted; otherwise it is replaced with a corrected sample from $p$.
+  \item The process is unbiased: the accepted sequence has the exact same distribution
+    as if the target model had generated it greedily/sampled independently.
+\end{enumerate}
+
+Typical speedup: $2$--$3\times$ on tasks where the draft model is accurate (code
+generation, continuation). On highly creative tasks with low draft acceptance, gains are
+minimal.
+
+\begin{paperbox}[title={Multi-token Prediction (Gloeckle et al.\ 2024)}]
+  Trains the model to predict the next $n$ tokens simultaneously using independent
+  heads. Unlike speculative decoding (which uses a separate draft model), multi-token
+  prediction is baked into the architecture. It functions as a form of
+  \emph{self-speculation}: the base model is its own draft. It also improves
+  sample-efficiency during training by providing $n$ gradient signals per forward pass.
+\end{paperbox}
 
 \subsection{Continuous batching}
 
-% TODO
+\textbf{Static batching} groups requests into a fixed batch and runs them together.
+When some sequences finish early and others continue, GPU cycles are wasted waiting for
+the longest sequence to complete before swapping in new work.
 
+\textbf{Continuous batching} (also called \emph{iteration-level scheduling} or
+\emph{in-flight batching}) solves this by decoupling batch composition from individual
+decode steps. After every iteration, completed sequences are evicted from the batch and
+new requests are inserted immediately, filling the vacant slots.
+
+\begin{intuitionbox}
+  Continuous batching treats the GPU like a highway with on-ramps: new cars (requests)
+  can join mid-journey as soon as a lane (batch slot) opens up, rather than waiting for
+  all cars to exit at the same time.
+\end{intuitionbox}
+
+Combined with PagedAttention (variable-length KV cache pages), continuous batching
+enables high-throughput serving at arbitrary sequence lengths. vLLM, TensorRT-LLM, and
+SGLang all implement continuous batching as their default scheduling strategy.

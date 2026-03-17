@@ -5,21 +5,181 @@
 
 \subsection{OpenClaw architecture overview}
 
-% TODO
+The NVIDIA stack for enterprise agentic deployment is composed of four distinct layers,
+each with a different responsibility:
+
+\begin{itemize}
+  \item \textbf{OpenClaw} --- the agent/application layer. This is the thing that plans,
+    calls tools, writes code, reads files, and tries to complete tasks. Think of it as
+    the agent ``brain'' and behaviour loop.
+
+  \item \textbf{OpenShell} --- the runtime governor. It sits \emph{between} OpenClaw and
+    the real machine, network, and models, and decides what the agent is actually allowed
+    to do. NVIDIA describes it as governing how the agent executes, what it can see and
+    do, and where inference is routed.
+
+  \item \textbf{NemoClaw} --- the packaged enterprise distribution. It takes OpenClaw and
+    adds the missing operational pieces: safer setup, policy controls, privacy routing,
+    model plumbing, and sandboxing. Installed in a single command via NVIDIA Agent
+    Toolkit software.
+
+  \item \textbf{Nemotron} --- NVIDIA's family of open models (reasoning, coding, visual
+    understanding, safety, and agentic workflows). In this stack, Nemotron is the
+    local or NVIDIA-hosted model option that NemoClaw/OpenShell can route inference to,
+    especially when enterprises want on-prem execution.
+\end{itemize}
+
+A useful one-line shorthand for each layer:
+\begin{center}
+  OpenClaw = agent behaviour \quad
+  Nemotron = model family \quad
+  OpenShell = execution/security runtime \quad
+  NemoClaw = packaged deployment stack
+\end{center}
+
+The key design philosophy is that ``wrapper'' is the right mental model for NemoClaw:
+it does not replace the agent brain; it adds a controlled execution environment
+\emph{around} it. The core question OpenClaw answers is \emph{``how do we make agents
+capable?''}; OpenShell answers \emph{``how do we make capable agents safe to run?''}
+NemoClaw bundles both answers into something an enterprise can actually operate.
 
 \subsection{OS-level agent primitives}
 
-% TODO
+OpenShell exposes three core architectural blocks that together form an agent OS:
+
+\begin{enumerate}
+  \item \textbf{Sandbox} --- the isolated environment where the agent runs. Mistakes or
+    malicious/confused behaviour are contained inside the sandbox boundary and cannot
+    reach the host OS or other sessions.
+
+  \item \textbf{Policy engine} --- checks what actions are allowed across the filesystem,
+    network, and process layers before any action executes. Rules are defined by the
+    operator/enterprise, not the agent.
+
+  \item \textbf{Privacy router} --- decides whether a given inference request or data
+    payload should stay on a local model (e.g.\ a local Nemotron instance) or may be
+    forwarded to a frontier cloud model. The routing decision is based on operator
+    cost/privacy policy, explicitly \emph{not} on what the agent wants to do.
+\end{enumerate}
+
+\textbf{Action interception flow.} When OpenClaw attempts any action (read a file, call
+a tool, invoke a model), OpenShell intercepts it before execution:
+\begin{enumerate}
+  \item Agent requests an action.
+  \item Policy engine evaluates whether the action is permitted under current rules.
+  \item Privacy router determines where any associated inference should go.
+  \item Action executes only if policy allows it; otherwise it is blocked and the
+    agent receives an error or a constrained alternative.
+\end{enumerate}
+
+\textbf{Example policy rules:}
+\begin{itemize}
+  \item HR data must stay on-device; only an approved local Nemotron model may see it.
+  \item Code repository content may be routed to an approved cloud model.
+  \item Outbound network requests are limited to a specified domain whitelist.
+  \item The agent may read \texttt{/workspace/invoices} but not \texttt{/home/user/.ssh}.
+  \item Only certain folder paths are writable; cloud model calls require scrubbed input.
+\end{itemize}
 
 \subsection{Filesystem \& process access}
 
-% TODO
+OpenShell implements controls at the OS primitive level, not just through soft system
+prompt instructions. Four categories of guardrails are enforced at runtime:
+
+\begin{itemize}
+  \item \textbf{Filesystem limits.} Scoped read/write access per session. An agent
+    handling support tickets can be restricted to \texttt{/tickets/current} and
+    explicitly denied access to credential stores or other user home directories.
+
+  \item \textbf{Blocked network egress.} Outbound connections require policy approval.
+    An enterprise can prevent customer PII from leaving the perimeter by blocking
+    unapproved external endpoints at the network namespace level.
+
+  \item \textbf{Process restrictions.} Limits on what processes the agent can spawn
+    (e.g.\ no arbitrary shell exec, no privilege escalation).
+
+  \item \textbf{Controlled inference backends.} The agent cannot freely choose which
+    model API to call; the privacy router intercepts model calls and enforces
+    routing policy.
+\end{itemize}
+
+Specific kernel-level mechanisms cited in NVIDIA's OpenShell documentation:
+\textbf{Landlock} (Linux kernel filesystem access control), \textbf{seccomp}
+(system call filtering), and \textbf{network namespaces} (network isolation per
+process group). These are the same primitives used in container runtimes like
+Docker/gVisor, adapted for agentic workloads.
 
 \subsection{Security sandboxing}
 
-% TODO
+The most important design idea in OpenShell is \textbf{out-of-process policy
+enforcement}: moving the real control point \emph{outside} the agent, so the agent
+cannot override it even if its reasoning is compromised, confused, or
+prompt-injected.
+
+\textbf{The problem with in-agent safety.} Most agent safety today is ``inside the
+agent'': system prompts, behavioural rules, tool descriptions that say ``don't do X''.
+These soft protections can fail if the agent loses context, is prompt-injected via
+observed content, or simply reasons its way around them. In-context instructions
+cannot enforce themselves.
+
+\textbf{OpenShell's answer.} By intercepting actions at the OS/runtime layer before
+they execute, OpenShell provides hard enforcement that the agent model cannot
+circumvent. NVIDIA compares this to a browser security model: sessions are isolated,
+and permissions are checked at the execution boundary, not just in the agent's
+``mind''. The agent may \emph{believe} an action is permitted; OpenShell decides
+whether it actually executes.
+
+This is why OpenShell is better described as:
+\begin{itemize}
+  \item a runtime governor
+  \item a policy firewall
+  \item a sandbox manager
+  \item an inference router
+\end{itemize}
+\ldots rather than as a model, a chatbot, or a prompt-engineering layer.
+
+\textbf{Kernel-level isolation.} NVIDIA explicitly targets kernel-level sandboxing
+(Landlock, seccomp, network namespaces) rather than process-level or
+container-level approaches, giving stronger isolation guarantees for long-running
+autonomous sessions.
 
 \subsection{Desktop automation patterns}
 
-% TODO
+\textbf{Enterprise deployment example: bank support ticket agent.}
+
+Without a controlled runtime, an unconstrained agent processing support tickets might:
+\begin{itemize}
+  \item read too many internal files beyond those needed for the task
+  \item leak customer PII to a cloud model in its prompt
+  \item execute unsafe shell commands with unexpected side-effects
+  \item POST data to an unapproved external endpoint
+\end{itemize}
+
+With NemoClaw/OpenShell, the operator configures policy such that:
+\begin{itemize}
+  \item customer PII stays on-prem; only an approved local Nemotron model sees raw
+    ticket text
+  \item only summarised, scrubbed data may be forwarded to a frontier cloud model
+  \item the agent may access \texttt{/tickets/current} but not engineer laptops or
+    credential folders
+  \item outbound network access is limited to an approved internal API whitelist
+\end{itemize}
+
+\textbf{The enterprise value proposition} is therefore not ``make the agent smarter''
+but \textbf{``make the agent deployable''}. The big blocker for long-running agents in
+production is not model quality --- it is \emph{trust}. NVIDIA frames this explicitly:
+the missing primitives are sandboxing, permissions, and isolation. If a safe runtime
+layer exists, enterprises can let agents run longer, touch more systems, and do useful
+work without granting unconstrained access.
+
+\textbf{Comparison to the Cowork/Claude Code approach.}
+Both NemoClaw/OpenShell and Cowork follow the same fundamental pattern --- a VM or
+sandbox separates the agent from the host, and policy tiers control what the agent can
+reach --- but at different deployment targets:
+\begin{itemize}
+  \item Cowork targets individual/team desktop users: single-session Ubuntu VM,
+    user-selected workspace mount, product-level prohibited-action lists.
+  \item NemoClaw/OpenShell targets enterprise IT: kernel-level isolation, org-defined
+    policy YAML, privacy routing between on-prem and cloud models, multi-session scale.
+\end{itemize}
 

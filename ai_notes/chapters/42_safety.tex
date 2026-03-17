@@ -17,5 +17,61 @@
 
 \subsection{Containment \& control}
 
-% TODO
+\textbf{The in-agent safety problem.} Current agent deployments rely heavily on
+\emph{in-context} safety mechanisms: system prompts that say ``don't do X'',
+tool descriptions with usage restrictions, and behavioural alignment instilled through
+RLHF/DPO. These are soft controls --- they live inside the model's reasoning and can
+fail under:
+\begin{itemize}
+  \item \textbf{Prompt injection:} malicious instructions embedded in observed content
+    (web pages, emails, file contents) that hijack the agent's action stream.
+  \item \textbf{Context overflow:} safety instructions scrolling out of the effective
+    attention range in long sessions.
+  \item \textbf{Reasoning drift:} the model convincing itself an exception is justified
+    through multi-step chain-of-thought.
+\end{itemize}
+
+\textbf{Out-of-process policy enforcement} is the architectural response. Rather than
+relying solely on the model's internal reasoning to stay within bounds, a runtime layer
+\emph{outside} the agent intercepts actions before they execute and enforces hard
+policy at the OS or network level. The model cannot override a kernel-level syscall
+filter by reasoning; it simply receives a blocked-action error.
+
+Real-world implementations:
+\begin{itemize}
+  \item \textbf{OpenShell (NVIDIA/NemoClaw):} policy engine + sandbox manager +
+    privacy router. Uses Landlock, seccomp, and network namespaces. Routing decisions
+    are based on operator policy files, not agent intent.
+  \item \textbf{Cowork (Anthropic):} per-session Ubuntu VM with scoped workspace
+    mount, product-level prohibited-action lists, and \texttt{permissionMode} tiers in
+    the Claude Code agent runtime.
+  \item \textbf{Browser security model analogy:} both approaches mirror how browsers
+    sandbox tabs --- each session is isolated, cross-origin requests are blocked by
+    default, and permissions (camera, clipboard, filesystem) require explicit grants.
+\end{itemize}
+
+\textbf{Principle of minimal footprint.} Anthropic's stated design principle for
+agentic systems: prefer reversible over irreversible actions, request only necessary
+permissions, avoid storing sensitive information beyond immediate need, and confirm
+with users when scope is unclear. This is the soft-control complement to hard runtime
+enforcement.
+
+The emerging consensus is that robust agent containment requires \emph{both}: aligned
+model behaviour (soft) to handle the common case, plus an out-of-process runtime
+layer (hard) as the enforcement backstop when soft controls are insufficient.
+
+\textbf{Idempotency for agents:}
+An action is \emph{idempotent} if executing it twice produces the same result as
+executing it once. Critical when agents retry failed actions on real-world systems:
+\begin{itemize}
+  \item Non-idempotent retries produce duplicate side-effects: two emails sent, two
+    orders placed, two support tickets created.
+  \item Mitigation: pass an \emph{idempotency key} (unique ID per logical action) so
+    the backend can detect and deduplicate retries. Standard practice in payment
+    APIs (Stripe) and REST design (\texttt{PUT}/\texttt{DELETE} are idempotent;
+    \texttt{POST} is not).
+  \item Agent design rule: tools that mutate real-world state should be idempotent
+    by design \emph{or} require explicit human confirmation and must never be retried
+    automatically without an idempotency key.
+\end{itemize}
 

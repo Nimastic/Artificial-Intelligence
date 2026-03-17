@@ -5,17 +5,173 @@
 
 \subsection{In-context (working) memory}
 
-% TODO
+The model's context window is its working memory: it holds the full conversation history,
+tool results, and system instructions for the current turn. Everything not in the context
+window is, from the model's perspective, forgotten.
+
+Practical implications observed in production agents:
+\begin{itemize}
+  \item \textbf{Context pressure.} As a session grows, input tokens increase and latency
+    / cost rise. Prompt caching mitigates this for stable prefixes (system prompts, skills
+    documentation) but not for the growing conversation tail.
+  \item \textbf{Shell-snapshots.} Claude Code writes \texttt{shell-snapshots/} entries
+    to preserve shell state (environment variables, working directory) between Bash tool
+    calls, effectively extending working memory to include filesystem cursor state.
+  \item \textbf{Extended thinking.} Thinking blocks give the model a scratchpad within
+    a single turn that is not part of the official assistant message — an intra-turn
+    working memory separate from the conversational context.
+\end{itemize}
 
 \subsection{External episodic memory}
 
-% TODO
+Episodic memory stores a timestamped record of what happened, so the agent can recall
+prior sessions or survive context-window resets.
+
+\textbf{JSONL conversation logs} (as implemented in Claude Code) are the clearest
+real-world example. Each event in a session is appended as a JSON line to
+\texttt{\textasciitilde/.claude/projects/\{project-slug\}/\{session-uuid\}.jsonl}.
+Key design choices:
+
+\begin{itemize}
+  \item \textbf{Append-only.} New events are always appended; nothing is deleted or
+    mutated. This makes the file a reliable audit log and enables trivial crash recovery.
+
+  \item \textbf{Linked-list structure.} The \texttt{parentUuid} field on each record
+    points to the preceding event, forming a singly-linked list (or a tree when
+    conversations branch via \texttt{isSidechain: true}). Replaying from the head
+    reconstructs the full conversation.
+
+  \item \textbf{Turn grouping via \texttt{promptId}.} All events in a single user turn
+    (the human message, multiple assistant chunks, and all tool results) share a
+    \texttt{promptId}, enabling efficient retrieval of a complete turn without walking
+    the full chain.
+
+  \item \textbf{Rich metadata.} Each record stores \texttt{cwd}, \texttt{gitBranch},
+    \texttt{version}, \texttt{userType}, and token-usage breakdowns, turning the log
+    into a queryable audit trail for debugging and cost analysis.
+
+  \item \textbf{Separation from semantic memory.} A sibling \texttt{memory/} directory
+    holds structured facts the agent has been explicitly asked to remember --- distinct
+    from the raw episodic log. This mirrors the episodic/semantic distinction in
+    cognitive science.
+\end{itemize}
 
 \subsection{Semantic memory via vector DBs}
 
-% TODO
+Semantic memory stores structured factual knowledge (facts, rules, definitions) in a
+form the agent can query across sessions. Unlike episodic memory, it has no inherent
+chronology — it stores \emph{what is true}, not \emph{what happened when}.
+
+\textbf{Five memory types from the CoALA framework} (Cognitive Architectures for
+Language Agents, Princeton):
+
+\begin{itemize}
+  \item \textbf{Short-term (working):} rolling buffer inside the context window.
+    Coherent across a session, forgotten when the window rolls over.
+  \item \textbf{Long-term:} persists across sessions via external storage. Crucial for
+    personalisation, domain expertise, and continuity. RAG is the primary LTM technique.
+  \item \textbf{Episodic:} records of specific past events — actions taken, outcomes
+    observed. Enables case-based reasoning: ``last time I saw this error, X fixed it.''
+    Implemented by logging event sequences (e.g.\ JSONL session logs).
+  \item \textbf{Semantic:} structured factual knowledge. Used in legal/medical diagnosis
+    and enterprise knowledge management. Implemented via knowledge graphs,
+    vector embeddings, or symbolic AI.
+  \item \textbf{Procedural:} skills and learned behaviours enabling automatic task
+    execution. Implemented via reinforcement learning or LoRA fine-tuning on task
+    demonstrations. Analogous to human muscle memory.
+\end{itemize}
+
+\textbf{Vector database as semantic store:}
+\begin{itemize}
+  \item Facts, documents, and conversation summaries are embedded into dense vectors
+    and stored in a vector DB (Chroma, Pinecone, Weaviate, pgvector).
+  \item At query time, the agent embeds its current query and retrieves the top-$k$
+    semantically similar records via ANN search, injecting them into the context.
+  \item \textbf{Personalisation loop:} as the agent accumulates interactions, new
+    user preferences, project facts, and domain knowledge are embedded and stored.
+    Future sessions retrieve only what is relevant to the current task.
+  \item \textbf{Balance constraint:} storing too much leads to slow retrieval and
+    noisy context; storing too little loses important facts. Relevance scoring and
+    TTL expiry policies help prune stale entries.
+\end{itemize}
+
+\subsection{Context engineering}
+
+While ``prompt engineering'' focuses on crafting the right instruction for a single
+turn, \textbf{context engineering} is the discipline of designing and managing
+\emph{everything} placed in the context window across an agent's full lifecycle: system
+prompts, tool schemas, retrieved documents, conversation history, and memory injections.
+
+As agents operate over long horizons and with large tool surfaces, context management
+becomes a first-class engineering concern. The key resources from Manus's engineering
+team summarise the practical lessons:
+
+\textbf{Context window as shared state.} The context is not just instructions --- it
+is the primary medium through which the agent perceives the world, maintains continuity,
+and communicates with tools. Every byte in the context competes for the model's
+``attention budget''.
+
+\textbf{Core context engineering principles:}
+\begin{itemize}
+  \item \textbf{Explicit state serialisation.} Rather than relying on the model to
+    infer state from conversation history, agents should serialise relevant state
+    (current plan, completed steps, open tasks) into structured blocks at the start
+    of each turn. This prevents context drift as the window grows.
+
+  \item \textbf{Selective history retention.} Keep full fidelity for recent turns
+    (last 2--5) and compress or summarise older turns. Tool call results should be
+    trimmed to their essential outputs; raw stdout of thousands of lines is wasted
+    context.
+
+  \item \textbf{Chunked retrieval injection.} Retrieved documents and memory fragments
+    should be injected near the task description (not buried at the end), with explicit
+    relevance labels so the model knows why each fragment was included.
+
+  \item \textbf{Tool schema placement.} Tool descriptions compete with task context
+    for tokens. For agents with many tools, hierarchical tool loading (load only the
+    relevant tool schema for each step) reduces noise and keeps task-relevant tokens
+    more salient.
+
+  \item \textbf{KV cache alignment.} For repeated agentic calls sharing a common
+    system prompt and tool suite, structure the context so the stable prefix (system
+    prompt + tool definitions) is identical across calls. This enables prompt caching
+    to amortise the cost of the static portion across many agent steps.
+\end{itemize}
+
+\begin{notebox}
+  ``Context engineering'' is the term coined by practitioners at Manus (2025) and
+  popularised via the \emph{Context Engineering for AI Agents: Lessons from Building
+  Manus} blog post. It reframes the craft of building agents away from individual
+  prompts toward systematic management of the entire information flow within the
+  context window.
+\end{notebox}
+
+\textbf{Context engineering 2.0.} As context windows grow to 1M+ tokens, the problem
+shifts from fitting information in to filtering what to prioritise. Research on
+``lost-in-the-middle'' (Liu et al.\ 2023) shows that models systematically under-attend
+to content in the middle of very long contexts. Mitigation strategies include placing
+critical facts near the beginning or end, and using structured XML/Markdown delimiters
+to make information boundaries salient.
 
 \subsection{Memory consolidation strategies}
 
-% TODO
+Consolidation moves information from episodic logs into more compact, reusable forms:
+
+\begin{itemize}
+  \item \textbf{Explicit summarisation.} At the end of a session (or when context
+    pressure builds) the agent can be prompted to write a summary of key decisions and
+    facts into the \texttt{memory/} store, discarding raw turn-by-turn detail.
+
+  \item \textbf{Selective retrieval.} Rather than replaying the full JSONL log, an agent
+    can embed past turns and retrieve only the $k$ most relevant episodes for the current
+    task --- combining episodic storage with a vector-DB retrieval step.
+
+  \item \textbf{Plan persistence.} The \texttt{plans/} subdirectory in
+    \texttt{.claude/} acts as a form of procedural memory: multi-step plans survive
+    context resets and can be resumed in a new session.
+
+  \item \textbf{Trade-off.} Compact semantic memory loses provenance; raw episodic logs
+    are complete but expensive to re-inject. Hybrid approaches maintain a compressed
+    ``working summary'' alongside the full log.
+\end{itemize}
 

@@ -3,19 +3,109 @@
 
 \section{State Space Models: Mamba \& RWKV}
 
+State Space Models (SSMs) are an alternative sequence-modelling paradigm to
+transformers. They draw on classical control theory: a continuous-time linear dynamical
+system maps an input signal $u(t)$ to an output $y(t)$ via a latent state $h(t)$.
+Discretised for sequence data, SSMs offer $O(n)$ inference complexity with a constant-
+size recurrent state, in contrast to the $O(n^2)$ attention matrix of transformers.
+
 \subsection{S4 \& structured state spaces}
 
-% TODO
+\begin{paperbox}[title={S4 (Gu et al.\ 2022)}]
+  Structured State Space Sequence model. Parameterises the state transition matrix $A$
+  using the \textbf{HiPPO} (High-order Polynomial Projection Operators) initialisation,
+  which provably compresses the history of an input signal into orthogonal polynomial
+  coefficients. This gives S4 the capacity to model extremely long-range dependencies
+  that RNNs and transformers typically miss.
+\end{paperbox}
+
+\textbf{Continuous system.} The core equations are:
+\[
+  h'(t) = A h(t) + B u(t), \quad y(t) = C h(t) + D u(t)
+\]
+Discretised with step size $\Delta$:
+\[
+  h_k = \bar{A} h_{k-1} + \bar{B} u_k, \quad y_k = C h_k
+\]
+where $\bar{A} = e^{\Delta A}$ and $\bar{B} = (e^{\Delta A} - I) A^{-1} B$.
+
+\textbf{Efficient training via convolution.} With fixed $A$, $B$, $C$, the recurrence
+can be unrolled into a convolution $y = u * K$ where the convolutional kernel
+$K = (CB, C\bar{A}B, C\bar{A}^2 B, \ldots)$ can be computed in $O(n \log n)$ with FFT.
+This enables fast, parallelisable training while retaining $O(1)$ inference via the
+recurrence.
 
 \subsection{Mamba \& selective SSMs}
 
-% TODO
+S4's state transition matrices $A$, $B$, $C$ are fixed (input-independent), giving a
+linear time-invariant (LTI) system. Mamba breaks this assumption.
+
+\begin{paperbox}[title={Mamba (Gu \& Dao 2023)}]
+  Introduces a \textbf{selection mechanism}: the SSM parameters $B$, $C$, and the
+  discretisation step $\Delta$ become functions of the input, making the model
+  input-dependent (non-LTI). This allows the model to \emph{selectively} propagate
+  or reset information based on content, analogous to the gating in LSTMs but
+  with superior long-range capacity.
+\end{paperbox}
+
+\textbf{Key innovation.} Because the matrices are now input-dependent, the convolution
+trick no longer applies. Mamba instead implements a hardware-aware \emph{selective scan}
+algorithm that fuses the recurrence into a single GPU kernel operating in SRAM, achieving
+efficient parallel computation during training while preserving $O(1)$ recurrent inference.
+
+\textbf{Mamba architecture.} Each Mamba block is a gated MLP variant:
+(1) the input is projected up; (2) one branch runs through the selective SSM;
+(3) the other branch gates the SSM output; (4) the result is projected back down.
+This mirrors the gated feedforward structure of modern LLMs.
+
+\textbf{Mamba-2} simplifies the selective SSM with a multi-head structure (SSD:
+Structured State Space Duality), establishing formal connections between SSMs and
+linear attention. It is faster in practice with similar quality.
 
 \subsection{RWKV: RNN-transformer hybrid}
 
-% TODO
+\textbf{RWKV} (Peng et al.\ 2023) reframes transformer attention as a linear RNN using
+a time-mixing mechanism inspired by both attention and classic RNNs. The key, value,
+and receptance (gate) are computed as in a transformer, but attention is computed as a
+cumulative weighted sum without the quadratic softmax matrix:
+\[
+  y_t = \frac{\sum_{\tau \leq t} e^{-(t-\tau) w + k_\tau} v_\tau}{\sum_{\tau \leq t} e^{-(t-\tau)w + k_\tau}}
+\]
+where $w$ is a learned decay parameter. This has $O(1)$ recurrent inference (like an
+RNN) while being parallelisable during training.
 
 \subsection{SSM vs attention trade-offs}
 
-% TODO
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Property} & \textbf{Transformer (attention)} & \textbf{SSM / Mamba} \\
+\midrule
+Training complexity & $O(n^2)$ & $O(n)$ \\
+Inference state & KV cache (grows with $n$) & Fixed recurrent state $O(1)$ \\
+Long-context memory & Full context in theory & Fixed capacity hidden state \\
+Positional inductive bias & Positional encodings needed & Baked in via state dynamics \\
+Content addressability & Arbitrary key-value lookup & Approximate; recency bias \\
+Hardware efficiency (A100) & FlashAttention helps & Selective scan; good SRAM use \\
+\bottomrule
+\end{tabular}
+\end{center}
 
+\textbf{When SSMs win:} audio, genomics, time series, and any domain where sequences
+are extremely long and local patterns matter more than global content retrieval.
+
+\textbf{When attention wins:} language reasoning, complex instruction following, tasks
+requiring recall of specific content from many steps ago. The fixed-capacity SSM state
+can ``forget'' distant information even if it is relevant.
+
+\textbf{Hybrid models} (e.g.\ Jamba, Zamba) interleave Mamba and attention layers,
+aiming to capture the memory efficiency of SSMs for most layers while retaining the
+associative recall strength of attention in a few layers. This is an active research
+frontier.
+
+\begin{intuitionbox}
+  Attention is like a database: you can look up any past token by content at any step,
+  but the lookup table (KV cache) grows with context. An SSM is like RAM with a
+  fixed size: you can only hold so much, and old information may be overwritten.
+  Hybrid models give you both a large RAM and a lookup table, used selectively.
+\end{intuitionbox}

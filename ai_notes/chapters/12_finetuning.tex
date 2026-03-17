@@ -5,17 +5,123 @@
 
 \subsection{Supervised fine-tuning (SFT)}
 
-% TODO
+\textbf{Supervised Fine-Tuning (SFT)} continues training a pretrained base model on a
+curated dataset of (instruction, response) pairs. The objective is identical to
+pretraining (cross-entropy over the response tokens), but the data distribution shifts
+from raw internet text to human-authored demonstrations of the desired behaviour.
+
+\textbf{What SFT accomplishes:}
+\begin{itemize}
+  \item \textbf{Instruction following:} the base model learns to respond to explicit
+    task prompts rather than continuing text in the pretraining style.
+  \item \textbf{Format compliance:} teaches the model to use specific response
+    formats (markdown, JSON, conversational tone).
+  \item \textbf{Surface alignment:} reduces obvious harmful, off-topic, or low-quality
+    outputs, though it does not align values as robustly as RLHF.
+\end{itemize}
+
+\textbf{Data quality over quantity.} 1,000 carefully curated, diverse SFT examples
+can outperform 100,000 noisy ones. The LIMA paper (Zhou et al.\ 2023) demonstrated
+that 1K high-quality examples produced competitive instruction-following with models
+trained on orders of magnitude more data. Data curation and deduplication are the
+dominant effort in SFT pipelines.
+
+\textbf{Masking.} During SFT training, loss is computed only on the response tokens;
+the instruction/prompt tokens are masked from the loss computation. This prevents the
+model from ``learning'' to output prompts.
 
 \subsection{Parameter-efficient fine-tuning (PEFT)}
 
-% TODO
+Full fine-tuning updates all model parameters, which costs as much GPU memory as
+pretraining and risks catastrophic forgetting when data is limited.
+\textbf{Parameter-Efficient Fine-Tuning (PEFT)} methods update only a small subset of
+parameters while keeping most of the model frozen.
+
+\textbf{Common PEFT families:}
+\begin{itemize}
+  \item \textbf{Adapter layers:} insert small bottleneck layers between transformer
+    components; only adapter weights are trained ($<1\%$ of parameters).
+  \item \textbf{Prefix tuning:} prepend trainable ``virtual tokens'' to the input;
+    gradients flow only through these prefix vectors.
+  \item \textbf{Prompt tuning:} even simpler --- only a small prefix embedding is
+    trained; the model weights are entirely frozen.
+  \item \textbf{LoRA} (see below): the dominant PEFT method for LLMs.
+\end{itemize}
+
+\textbf{Why PEFT works:} pretrained models learn rich representations; most task-
+specific adaptation lies in a low-dimensional subspace of the weight update. PEFT
+explicitly exploits this intrinsic dimensionality.
 
 \subsection{LoRA \& AdaLoRA}
 
-% TODO
+\begin{paperbox}[title={LoRA: Low-Rank Adaptation (Hu et al.\ 2022)}]
+  Freezes the pretrained weight matrix $W_0 \in \mathbb{R}^{d \times k}$ and
+  injects a trainable low-rank decomposition $\Delta W = BA$ where
+  $B \in \mathbb{R}^{d \times r}$, $A \in \mathbb{R}^{r \times k}$, $r \ll \min(d,k)$.
+  The modified forward pass is $h = W_0 x + \frac{\alpha}{r} B A x$.
+  At inference, the LoRA weights can be merged ($W' = W_0 + \frac{\alpha}{r}BA$)
+  so there is \emph{zero} additional inference latency.
+\end{paperbox}
+
+\textbf{Key properties:}
+\begin{itemize}
+  \item Typically applied to the $Q$, $K$, $V$, and output projection matrices;
+    sometimes also to MLP layers.
+  \item Rank $r = 4$--$64$ is common; smaller $r$ acts as stronger regularisation.
+    $\alpha$ is a scaling hyperparameter (often set equal to $r$ so the factor is 1).
+  \item Trainable parameters: $r \cdot (d + k)$ per matrix $\approx 0.1$--$1\%$ of
+    total parameters for typical LLM sizes.
+  \item $A$ is initialised with random Gaussian; $B$ is initialised to zero, so
+    $\Delta W = 0$ at the start of training (no disruption to the pretrained model).
+\end{itemize}
+
+\textbf{AdaLoRA} adaptively allocates the rank budget across weight matrices based on
+importance scores (derived from SVD of the gradient signal). High-importance matrices
+receive more rank; low-importance ones are pruned. This avoids the uniform rank
+assumption of vanilla LoRA.
+
+\begin{intuitionbox}
+  LoRA is the ``surgical strike'' fine-tuning method: instead of re-training the
+  full weight matrix, it adds a small residual correction in a low-dimensional
+  subspace. The pretrained knowledge is preserved; only the task-specific delta is
+  learned.
+\end{intuitionbox}
 
 \subsection{QLoRA \& quantized fine-tuning}
 
-% TODO
+\begin{paperbox}[title={QLoRA (Dettmers et al.\ 2023)}]
+  Combines quantization with LoRA to make fine-tuning billion-parameter models
+  feasible on a single consumer/research GPU.
+\end{paperbox}
 
+\textbf{Three technical innovations:}
+
+\begin{itemize}
+  \item \textbf{4-bit NormalFloat (NF4):} a quantization format specifically designed
+    for normally-distributed weights (as neural network parameters are). Minimises
+    quantization error for Gaussian distributions; performs better than INT4 or FP4.
+
+  \item \textbf{Double quantization:} quantizes the quantization constants themselves
+    (the per-block scaling factors) from FP32 to FP8, saving $\approx$0.5 bits per
+    parameter on top of the NF4 savings.
+
+  \item \textbf{Paged optimisers:} uses NVIDIA Unified Memory to offload optimiser
+    states to CPU RAM when GPU memory is exhausted during gradient accumulation.
+    Avoids OOM crashes during long forward passes with large batch sizes.
+\end{itemize}
+
+\textbf{Workflow:} (1) load base model in NF4 4-bit precision; (2) attach FP16/BF16
+LoRA adapters to the frozen quantized base; (3) train only the LoRA adapters. The
+base model is never de-quantized during training; dequantization happens on-the-fly
+during each forward/backward pass.
+
+\textbf{Practical impact.} QLoRA made it possible to fine-tune a 65B-parameter model
+on a single 48\,GB A100 GPU (or a 13B model on a single 24\,GB consumer GPU), enabling
+researchers and practitioners without large compute budgets to fine-tune frontier-scale
+models.
+
+\begin{notebox}
+  QLoRA introduces a small accuracy penalty versus full-precision LoRA due to the 4-bit
+  base model. For most task-specific fine-tunes the gap is negligible; for highly
+  precise scientific/mathematical tasks it may matter.
+\end{notebox}

@@ -5,17 +5,118 @@
 
 \subsection{Function calling APIs}
 
-% TODO
+Modern LLM APIs (OpenAI, Anthropic, Google) support \emph{tool use} (also called
+function calling): the model can emit a structured tool-invocation request instead of
+plain text, the caller executes it, and the result is fed back in the next turn.
+
+\textbf{Anthropic Messages API structure}, as observed in Claude Code JSONL logs:
+
+\begin{itemize}
+  \item A \texttt{tool\_use} content block in an assistant message contains
+    \texttt{id}, \texttt{name}, and \texttt{input} (a JSON object matching the tool's
+    schema). Multiple tool calls can appear in the same content array.
+
+  \item Tool results are returned by the caller as a \texttt{user} turn containing a
+    \texttt{tool\_result} content block with the matching \texttt{tool\_use\_id}. This
+    means the API's call/result cycle always alternates user/assistant turns, even though
+    the ``user'' message is machine-generated.
+
+  \item Each result in the JSONL carries a \texttt{toolUseResult} wrapper with
+    \texttt{stdout}, \texttt{stderr}, \texttt{interrupted} (boolean, set if the user
+    killed the process), \texttt{isImage} (for screenshot tools), and
+    \texttt{noOutputExpected}.
+
+  \item The \texttt{sourceToolAssistantUUID} field links the result back to the exact
+    assistant event that issued the call, enabling causal tracing across the log.
+\end{itemize}
+
+\textbf{Tool loop termination.} The loop ends when the model emits a
+\texttt{stop\_reason} of \texttt{end\_turn} (no more tool calls) or
+\texttt{max\_tokens}. Agents must handle the \texttt{tool\_use} stop reason to detect
+mid-response tool calls vs.\ a completed response.
 
 \subsection{Model Context Protocol (MCP)}
 
-% TODO
+MCP (Anthropic, 2024) is an open protocol that standardises how agents connect to
+external tools and data sources. It separates the \emph{tool implementation} (an MCP
+server) from the \emph{model} (an MCP client), so any compliant agent can use any
+compliant server without custom glue code.
+
+\begin{itemize}
+  \item MCP servers expose \emph{tools}, \emph{resources} (data the model can read),
+    and \emph{prompts} (reusable prompt fragments) over a JSON-RPC interface via
+    stdio or HTTP/SSE.
+  \item In Cowork, MCP connectors provide authenticated access to external services
+    (Slack, Asana, Google Drive, etc.). The agent never handles raw credentials;
+    authentication is managed by the MCP server layer.
+  \item A central registry (\texttt{mcp-registry}) lets agents discover available
+    connectors at runtime, enabling dynamic tool acquisition.
+\end{itemize}
 
 \subsection{Tool schema design}
 
-% TODO
+A tool schema is the structured definition that tells the model what a tool does and
+how to call it. Schema quality directly determines whether the model chooses tools
+correctly and forms valid arguments.
+
+\textbf{Schema fields (standard across APIs):}
+\begin{itemize}
+  \item \textbf{Name:} a unique, snake\_case identifier. The model uses this to
+    reference the tool in its tool\_use output. Collision-free naming matters in
+    large tool sets.
+  \item \textbf{Description:} natural-language explanation of what the tool does,
+    when to use it, and when \emph{not} to use it. This is the primary signal the
+    model uses for tool selection --- a bad description causes wrong tool choice far
+    more often than a bad parameter schema.
+  \item \textbf{Parameters:} a JSON Schema object defining the tool's input fields,
+    their types, descriptions, constraints (enum, pattern, minimum/maximum), and which
+    are required vs.\ optional.
+  \item \textbf{Tool call ID:} a unique tracking ID (assigned by the API) linking each
+    invocation to its result in multi-tool conversations.
+\end{itemize}
+
+\textbf{Design heuristics:}
+\begin{itemize}
+  \item Keep tool names semantically distinct; \texttt{search\_web} vs.\
+    \texttt{search\_docs} is clearer than \texttt{search1} vs.\ \texttt{search2}.
+  \item Descriptions should include \emph{when to use} and \emph{when not to use}.
+    Example: ``Use this tool to look up current weather. Do not use for historical
+    weather data; use \texttt{weather\_history} instead.''
+  \item Limit required parameters. Optional parameters reduce model friction; use
+    sensible defaults and document them.
+  \item For tools with large output surfaces (filesystem reads, web fetches), document
+    the output format so the model can parse results correctly.
+  \item Test schemas by inspecting which tool the model selects for edge-case prompts;
+    iterate on descriptions before parameters.
+\end{itemize}
+
+\textbf{Combined with RAG:} tool-calling and RAG complement each other. The model
+can use a \texttt{search} tool to retrieve documents, then consolidate multiple
+retrieval results and reduce redundant API calls, producing a richer and more
+contextually grounded response than either approach alone.
 
 \subsection{Error handling in tool loops}
 
-% TODO
+Tool failures must be communicated back to the model so it can adapt rather than
+silently stall:
+
+\begin{itemize}
+  \item The Anthropic API's \texttt{tool\_result} block accepts an \texttt{is\_error:
+    true} flag alongside the error message. The JSONL log confirms this: permission
+    errors (e.g.\ \texttt{EACCES}) are returned as error results with the same
+    \texttt{tool\_use\_id}, not as exceptions in the outer call.
+
+  \item \textbf{Interrupted tools.} The \texttt{interrupted} field in
+    \texttt{toolUseResult} signals that a long-running process was killed mid-execution
+    (e.g.\ the user cancelled). The agent should treat partial output as unreliable.
+
+  \item \textbf{Retry heuristics.} Well-designed agents distinguish between transient
+    errors (network timeout --- retry), permission errors (wrong path --- try alternate
+    approach), and hard failures (bad schema --- surface to user). Blindly retrying
+    permission errors wastes turns and context budget.
+
+  \item \textbf{Context-budget awareness.} Because tool results consume input tokens,
+    agents should prefer tools that return concise outputs (e.g.\ \texttt{Grep} over
+    full-file \texttt{Read}) when context is constrained.
+\end{itemize}
 

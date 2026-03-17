@@ -7,9 +7,54 @@
 
 % TODO
 
+\subsection{NVIDIA NemoClaw / OpenShell}
+
+NemoClaw is NVIDIA's packaged enterprise distribution for agentic deployment, combining
+three layers into a single installable stack (see Chapter~36 for full detail):
+
+\begin{itemize}
+  \item \textbf{OpenClaw} --- the agent/app layer (planning, tool use, file I/O).
+  \item \textbf{OpenShell} --- the out-of-process runtime governor: sandbox +
+    policy engine + privacy router. Sits between the agent and the real OS/network.
+  \item \textbf{Nemotron} --- NVIDIA's open model family (reasoning, coding, safety,
+    agentic) used as the local inference option when cloud routing is disallowed.
+\end{itemize}
+
+The distinguishing architectural idea is \emph{out-of-process policy enforcement}:
+safety controls are applied at the OS level (Landlock, seccomp, network namespaces)
+rather than relying on soft in-context instructions. Enterprise policy rules
+(data residency, domain whitelists, filesystem scoping) are enforced by OpenShell
+before any action executes, regardless of what the agent reasons it should do.
+
 \subsection{Anthropic Computer Use}
 
-% TODO
+Anthropic's \emph{Computer Use} capability (released October 2024) exposes the model's
+ability to observe screenshots and emit low-level desktop actions (mouse clicks, keyboard
+input, scrolling). It is offered as a set of tool schemas (\texttt{computer},
+\texttt{text\_editor}, \texttt{bash}) that the API caller is responsible for executing,
+making the operator the ``hands'' that actually drive the OS.
+
+\textbf{Cowork} is Anthropic's desktop-native product built on this foundation. Rather
+than raw computer use, Cowork couples a sandboxed Linux VM with a rich tool layer
+(filesystem access, web browsing, scheduled tasks, MCP connectors) to produce a
+practical desktop agent for non-developers. Key architectural points observed directly:
+
+\begin{itemize}
+  \item The agent runs inside a per-conversation Ubuntu 22 VM spun up on the user's
+    machine. Each session receives a randomly generated slug
+    (e.g.\ \texttt{festive-nice-ramanujan}) used as both the VM directory name and the
+    project identifier in the \texttt{.claude/} state store.
+  \item A mounted workspace path (\texttt{/sessions/\{slug\}/mnt/\{user-folder\}})
+    bridges the VM to the user's actual filesystem, while the VM's own root remains
+    ephemeral and resets between tasks.
+  \item A \textbf{Skills system} provides Claude with pre-written \texttt{SKILL.md}
+    instruction files (e.g.\ \texttt{pptx}, \texttt{docx}, \texttt{pdf}, \texttt{xlsx})
+    that encode best practices for creating specific document types, reducing trial-and-error
+    at inference time.
+  \item MCP (Model Context Protocol) connectors allow authenticated integration with
+    external services (Slack, Asana, Google Drive, etc.) without the agent handling
+    raw credentials.
+\end{itemize}
 
 \subsection{OpenAI Operator \& Agents SDK}
 
@@ -21,11 +66,67 @@
 
 \subsection{Desktop agent architectures}
 
-% TODO
+Desktop agents must bridge the gap between an LLM's token-level reasoning and the
+pixel/filesystem/network reality of a personal computer. A few recurring structural
+patterns:
+
+\begin{itemize}
+  \item \textbf{Tool-first vs.\ screenshot-first.} Tool-first agents (Claude Code, Cowork)
+    prefer structured tool calls (read file, run bash, fetch URL) over raw screenshot
+    observation. Screenshot-first agents (OpenAI Operator, Manus) parse the visual DOM
+    and emit pointer events. Tool-first agents are faster and cheaper for file/code tasks;
+    screenshot-first generalizes to arbitrary GUI applications.
+
+  \item \textbf{Workspace isolation.} A dedicated working directory (or VM) separates
+    agent-generated artifacts from the user's files, preventing accidental overwrites.
+    Cowork keeps a \texttt{/sessions/\{slug\}/} scratch space distinct from the mounted
+    user folder.
+
+  \item \textbf{State subdirectories.} The \texttt{.claude/} layout illustrates how
+    desktop agents partition state: \texttt{projects/} for conversation logs,
+    \texttt{plans/} for multi-step plans, \texttt{memory/} for persistent notes,
+    \texttt{shell-snapshots/} for working-directory continuity across Bash calls, and
+    \texttt{backups/} for rollback support.
+
+  \item \textbf{Prompt caching at scale.} Long-running desktop sessions accumulate large
+    system prompts. Tiered prompt caching (e.g.\ 5-minute and 1-hour TTL tiers in
+    Anthropic's API) amortises the cost of re-encoding the same instructions on every
+    turn.
+\end{itemize}
 
 \subsection{Security \& sandboxing for autonomous agents}
 
-% TODO
+Autonomous agents operating on real filesystems and networks introduce a surface area for
+both accidental harm and adversarial \emph{prompt injection}.
+
+\textbf{Sandboxing layers} used in practice:
+\begin{itemize}
+  \item \textbf{VM isolation} --- each session runs in a separate lightweight VM so a
+    runaway command cannot reach the host OS or other sessions.
+  \item \textbf{Filesystem scoping} --- the agent's write access is limited to its own
+    working directory; the user's files are mounted read-write only through an explicit
+    workspace mount.
+  \item \textbf{Permission tiers} --- Claude Code's \texttt{permissionMode} field
+    (\texttt{default / full / restricted}) controls whether the agent can run arbitrary
+    shell commands, write files, or is restricted to read-only actions.
+  \item \textbf{Prohibited action lists} --- product-level policies (e.g.\ Cowork's
+    security rules) enumerate actions the agent must refuse regardless of instruction:
+    permanent deletion, modifying access controls, entering financial credentials, creating
+    accounts.
+\end{itemize}
+
+\textbf{Prompt injection} is the primary adversarial threat: malicious instructions
+embedded in observed content (web pages, emails, filenames, tool results) attempt to
+hijack the agent's action stream. Defences include:
+\begin{itemize}
+  \item Treating all content from tool results as \emph{untrusted data}, not as
+    instructions --- regardless of claimed authority (``admin override'', ``Anthropic
+    staff'').
+  \item Requiring explicit out-of-band user confirmation (in the chat interface) before
+    acting on any instruction found inside a function result.
+  \item Signing extended-thinking blocks (as in Claude's \texttt{signature} field) to
+    detect tampering between turns in a long tool-use loop.
+\end{itemize}
 
 \subsection{Meta's agent research (LLaMA, CICERO)}
 

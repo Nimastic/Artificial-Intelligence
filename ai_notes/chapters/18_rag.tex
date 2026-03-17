@@ -5,19 +5,162 @@
 
 \subsection{Naive RAG pipeline}
 
-% TODO
+Retrieval-Augmented Generation (RAG) grounds LLM responses in external knowledge
+without retraining model weights. The canonical pipeline has two phases:
+
+\textbf{Offline (indexing):}
+\begin{enumerate}
+  \item Load source documents (PDFs, web pages, databases) via document loaders.
+  \item Chunk documents into retrievable units (see \S\ref{chunking}).
+  \item Embed each chunk with a dense embedding model.
+  \item Store embeddings + raw text in a vector store.
+\end{enumerate}
+
+\textbf{Online (query time):}
+\begin{enumerate}
+  \item Embed the user query with the same model.
+  \item Run approximate nearest-neighbour (ANN) search to find top-$k$ chunks.
+  \item Prepend retrieved chunks as context in the prompt.
+  \item LLM generates an answer conditioned on context.
+\end{enumerate}
+
+\textbf{LangChain components} covering this pipeline:
+\begin{itemize}
+  \item \textbf{Document loaders:} Dropbox, Google Drive, OneDrive, YouTube, PubMed,
+    URLs, Airtable, Figma, Notion, Pandas, MongoDB, Trello, and 100+ more.
+  \item \textbf{Text splitters:} \texttt{RecursiveCharacterTextSplitter} (default),
+    sentence splitters, token-aware splitters, semantic splitters.
+  \item \textbf{Vector stores:} 50+ integrations including Chroma, Pinecone, Weaviate,
+    pgvector, FAISS; represent chunks as dense embeddings for low-latency queries.
+  \item \textbf{Retrievers:} abstract interface accepting a query string, returning a
+    \texttt{Document} list; decouples retrieval logic from the store backend.
+  \item \textbf{Memory:} full conversation history, summarisation-based, or $n$-most-recent
+    exchange buffers to maintain multi-turn context.
+\end{itemize}
 
 \subsection{Embedding models \& vector DBs}
 
 % TODO
 
 \subsection{Chunking strategies}
+\label{chunking}
 
-% TODO
+Chunking strategy is one of the highest-leverage decisions in a RAG system: it
+determines the granularity of what can be retrieved and how much context each chunk
+carries.
+
+\textbf{Static approaches (no LLM required):}
+\begin{itemize}
+  \item \textbf{Fixed-size / sliding window:} split every $n$ tokens with an $m$-token
+    overlap. Simple and predictable but ignores document semantics.
+  \item \textbf{Sentence / paragraph:} split on linguistic boundaries. Better cohesion
+    but variable lengths can overflow the retriever's embedding dimension budget.
+  \item \textbf{Recursive character splitting:} try progressively smaller separators
+    (\verb|\n\n|, \verb|\n|, space, character) until chunks fit the target size.
+    The LangChain default; good general-purpose baseline.
+  \item \textbf{Semantic splitting:} embed consecutive sentences and split where
+    cosine distance between adjacent embeddings exceeds a threshold. Higher quality,
+    more expensive.
+\end{itemize}
+
+\textbf{Agentic chunking:}
+An LLM agent determines chunk boundaries dynamically by reading the document and
+reasoning about semantic coherence and logical structure — treating chunking as a
+comprehension task rather than a rule-based process. Produces higher-quality, more
+coherent chunks at significantly greater token cost. Best suited for high-value
+corpora where retrieval quality justifies inference spend.
+
+\subsection{Retrieval methods: dense, sparse, hybrid}
+
+The retrieval step is the most critical quality lever in a RAG system. Three main
+approaches exist:
+
+\textbf{Dense retrieval:}
+Documents and queries are embedded into dense vector representations; retrieval
+returns the top-$k$ nearest neighbours by cosine or dot-product similarity.
+\begin{itemize}
+  \item Good at: semantic matching, paraphrases, meaning-based queries
+    (``what causes inflation'' retrieves relevant content even without the word
+    ``inflation'').
+  \item Weakness: can miss exact keyword matches (names, IDs, version numbers,
+    unique terms). A query for ``v2.3.1 release notes'' may retrieve semantically
+    related content about other releases.
+\end{itemize}
+
+\textbf{Sparse retrieval (BM25 / TF-IDF):}
+Keyword-based scoring; documents ranked by term overlap with the query, weighted by
+term frequency and inverse document frequency.
+\begin{itemize}
+  \item Good at: exact matches, named entities, product codes, technical terms.
+  \item Weakness: no semantic flexibility; ``automobile'' and ``car'' are treated
+    as unrelated terms.
+\end{itemize}
+
+\textbf{Hybrid retrieval:}
+Combines dense and sparse scores (typically via reciprocal rank fusion or a linear
+combination). This is the recommended default for production RAG systems because:
+\begin{itemize}
+  \item Dense catches semantic meaning; sparse catches exact terms.
+  \item Most real-world queries contain both semantic intent and specific
+    keyword constraints.
+  \item Adding sparse to a dense system is cheap (BM25 is fast and requires no GPU).
+\end{itemize}
+
+\textbf{RAG vs fine-tuning vs in-context learning --- when to use which:}
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Use RAG when} & \textbf{Use fine-tuning when} & \textbf{Use in-context when} \\
+\midrule
+Facts change often & Style/tone must be consistent & Task fits in the prompt \\
+Private docs involved & Task patterns repeat at scale & Fast iteration needed \\
+Citations required & Output format is rigid & No training data available \\
+No retraining budget & Latency must be minimised & \\
+\bottomrule
+\end{tabular}
+\end{center}
 
 \subsection{Reranking \& advanced RAG}
 
-% TODO
+\textbf{Advanced RAG} wraps the naive pipeline with pre- and post-retrieval
+optimisation steps:
+
+\begin{itemize}
+  \item \textbf{Query rewriting:} reformulate the user query before embedding retrieval.
+    HyDE (Hypothetical Document Embeddings) generates a hypothetical answer and embeds
+    \emph{that} instead; step-back prompting abstracts the query to a higher-level principle.
+  \item \textbf{Reranking:} a cross-encoder model (e.g.\ Cohere Rerank, BGE-Reranker)
+    re-scores the top-$k$ ANN candidates against the query with full attention, then
+    passes only top-$m$ to the context window.
+  \item \textbf{Contextual compression:} a post-retrieval LLM filters each chunk to
+    only the sentences most relevant to the query, reducing noise in the prompt.
+  \item \textbf{Multi-query retrieval:} generate $n$ paraphrases of the query, retrieve
+    for each, deduplicate (by hash or semantic similarity), then rerank the merged set.
+\end{itemize}
+
+\textbf{Agentic RAG} replaces the fixed retrieve-then-generate pipeline with an agent
+that can iterate:
+
+\begin{itemize}
+  \item \textbf{Adaptive retrieval:} the agent decides \emph{whether} to retrieve at
+    all, which knowledge source to query, and whether a retrieved result is sufficient
+    to answer --- queries traditional RAG cannot express.
+  \item \textbf{Iterative refinement:} if retrieval is insufficient, the agent
+    reformulates the query and retrieves again, possibly from a different source.
+  \item \textbf{Multi-source fusion:} the agent queries heterogeneous backends (vector
+    DB, SQL, web search, REST API) and synthesises a coherent answer.
+  \item \textbf{Semantic caching:} frequently retrieved query--result pairs are cached
+    at the agent level to avoid redundant embedding lookups across turns.
+  \item \textbf{Output validation:} the agent can verify retrieved facts against a
+    secondary source before including them in the final response.
+\end{itemize}
+
+\begin{intuitionbox}[title=Traditional RAG vs Agentic RAG]
+  Traditional RAG: one retrieval step, static rules, single knowledge base, no
+  validation, cannot iterate. Agentic RAG: adaptive strategy, multi-source, iterative,
+  self-validating, full tool-use loop. The cost is latency and token spend; the benefit
+  is accuracy on complex multi-step queries.
+\end{intuitionbox}
 
 \subsection{Long-context vs retrieval trade-offs}
 

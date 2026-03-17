@@ -5,7 +5,72 @@
 
 \subsection{WebArena, OSWorld}
 
-% TODO
+% TODO — benchmark-specific details to be added when covered
+
+\subsection{AgentOps \& observability}
+
+\textbf{AgentOps} (agent operations) is the emerging discipline of managing the full
+lifecycle of autonomous agents in production, analogous to DevOps for software and
+MLOps for models.
+
+\textbf{Why agents are harder to operate than models:}
+\begin{itemize}
+  \item Non-deterministic: same input can produce different action sequences.
+  \item Autonomous: they initiate actions, chain tasks, and make decisions without
+    per-step human approval.
+  \item Multi-turn: errors compound across steps; a wrong action in step 3 may only
+    surface in step 10.
+  \item Multi-system: agents call external APIs, databases, and sub-agents; failure
+    can originate anywhere in the chain.
+\end{itemize}
+
+\textbf{AgentOps lifecycle phases:}
+\begin{enumerate}
+  \item \textbf{Development:} specify objectives and constraints, map task
+    dependencies, define data pipelines and expected tool schemas.
+  \item \textbf{Testing:} evaluate agent performance in a sandbox environment with
+    simulated tool responses before production exposure.
+  \item \textbf{Monitoring:} observe results at session, trace, and span levels. Track
+    actions taken, API calls made, latency, total duration, and LLM cost per run.
+  \item \textbf{Feedback:} log agent mistakes and surface them for review; mechanisms
+    for triggering a corrected re-run or updating instructions.
+  \item \textbf{Governance:} guardrails and policies constraining agent behaviour;
+    regulatory compliance (GDPR, HIPAA); audit trails for accountability.
+\end{enumerate}
+
+\textbf{IBM / watsonx observability stack} (OpenTelemetry-based):
+\begin{itemize}
+  \item Built on OpenTelemetry (OTEL) standards for vendor-neutral instrumentation.
+  \item Automatic and manual instrumentation across major frameworks (LangChain,
+    CrewAI, AutoGen, watsonx Orchestrate, OpenAI Agents SDK).
+  \item \textbf{Session replays:} step-by-step observation of an agent run, including
+    every tool call, intermediate result, and reasoning step.
+  \item \textbf{Multi-trace workflow views:} see how a task flows across multiple
+    sessions, agents, and tool calls in a single dashboard.
+  \item \textbf{Cost analysis:} trace LLM token spend across providers (Azure, AWS,
+    IBM) per session or per task type.
+  \item \textbf{Trajectory exploration:} inspect which paths through the agent's
+    action space led to success vs.\ failure.
+  \item AI-powered analytics layer for iterative benchmarking toward optimisation.
+\end{itemize}
+
+\textbf{LangSmith} (LangChain's eval and observability platform):
+\begin{itemize}
+  \item Automatically traces all model and tool calls to spot errors and latency
+    outliers.
+  \item Supports testing performance under different model configurations without
+    code changes.
+  \item Not limited to LangChain; integrates with any LLM application.
+  \item \textbf{LLM-as-a-judge evaluators:} use a stronger model to score agent
+    outputs on correctness, helpfulness, and safety criteria.
+  \item Aims to bridge the gap between prototype performance and production-quality
+    reliability.
+\end{itemize}
+
+\textbf{AgentOps ecosystem} (17+ tools as of 2024):
+Agenta, LangSmith, TruLens, AgentOps.ai, Weights \& Biases Weave, Arize Phoenix,
+Braintrust, Helicone, and others. Most focus on trace capture, cost tracking, and
+evaluation scoring.
 
 \subsection{SWE-bench Verified}
 
@@ -13,13 +78,98 @@
 
 \subsection{Tool-use evals}
 
-% TODO
+Evaluating tool-using agents is fundamentally different from evaluating static
+question-answering models:
+
+\begin{itemize}
+  \item \textbf{Trajectory correctness:} does the agent reach the right answer
+    \emph{via the right sequence of tool calls}? A correct answer via a lucky wrong
+    path is not a reliable success.
+  \item \textbf{Tool selection accuracy:} does the agent choose the appropriate
+    tool for each sub-task, and avoid calling tools unnecessarily?
+  \item \textbf{Argument quality:} are the arguments passed to tools well-formed,
+    correctly typed, and semantically appropriate?
+  \item \textbf{Error recovery:} when a tool returns an error, does the agent
+    diagnose and adapt, or loop in confusion?
+  \item \textbf{Efficiency:} how many tool calls does the agent make vs.\ the
+    minimum required? Excess calls inflate cost and latency.
+\end{itemize}
 
 \subsection{Long-horizon task evaluation}
 
-% TODO
+Long-horizon tasks span many steps, multiple tools, and potentially multiple sessions.
+Evaluation is harder because:
+
+\begin{itemize}
+  \item \textbf{Partial credit:} an agent that completes 8 of 10 required steps is
+    meaningfully better than one that completes 2, but binary pass/fail metrics miss
+    this. Step-level scoring is preferred.
+  \item \textbf{State coupling:} later steps depend on earlier ones; an error early
+    in the trajectory can make all subsequent steps fail even if the agent's logic
+    is otherwise sound.
+  \item \textbf{Non-determinism:} re-running the same task may produce different
+    action sequences. Eval suites should run multiple trials and report distributions,
+    not single results.
+  \item \textbf{Sandboxed environments:} long-horizon evals (WebArena, OSWorld,
+    SWE-bench) provide controlled environments with real or simulated backends so
+    agents can take real actions without affecting production systems.
+  \item \textbf{Human-in-the-loop baselines:} comparing agent task completion rate
+    and time-to-completion against human workers provides the most meaningful
+    benchmarks for enterprise use cases.
+\end{itemize}
 
 \subsection{Safety evals for agents}
 
-% TODO
+Agent safety evaluation goes beyond behavioural alignment to cover the agent's
+interaction with real-world resources:
+
+\begin{itemize}
+  \item \textbf{Prompt injection resistance:} does the agent correctly refuse to
+    follow instructions embedded in tool results, web pages, or documents? Measured
+    by injecting adversarial instructions into observed content and checking whether
+    the agent acts on them.
+  \item \textbf{Minimal-footprint compliance:} does the agent request only the
+    permissions it needs, prefer reversible over irreversible actions, and avoid
+    storing sensitive data unnecessarily?
+  \item \textbf{Refusal accuracy:} does the agent correctly refuse prohibited actions
+    (permanent deletion, credential entry, sharing permissions) while not over-refusing
+    legitimate requests?
+  \item \textbf{Escalation / confirmation behaviour:} does the agent pause and request
+    human approval at the right points (novel situations, irreversible actions, high
+    stakes) rather than proceeding autonomously?
+  \item \textbf{Data leakage:} does the agent avoid routing sensitive context to
+    unapproved model backends or external endpoints? (See also OpenShell privacy router,
+    Chapter~36.)
+\end{itemize}
+
+\subsection{Agent failure modes}
+
+Understanding failure modes drives the most impactful eval improvements.
+
+\begin{itemize}
+  \item \textbf{Hallucination:} the agent asserts facts not supported by evidence.
+    Mitigations: RAG grounding, citation requirements, fact-check subagent,
+    ``unknown'' fallback when evidence is absent.
+
+  \item \textbf{Looping:} the agent repeats a tool call or reasoning cycle without
+    progress. Mitigations: max-step limit, repeated-state detection, explicit stop
+    conditions, or upfront planning (ReWOO).
+
+  \item \textbf{Tool misuse:} wrong tool, malformed arguments, or over-calling.
+    Mitigations: strong tool descriptions (Chapter~20), schema validation, explicit
+    routing rules.
+
+  \item \textbf{Context drift:} the agent loses track of the original goal across
+    many steps. Mitigations: persistent task state, goal re-injection, summarised
+    intermediate outputs.
+
+  \item \textbf{Over-delegation:} spawning too many subagents for a task that could
+    be handled directly, inflating cost and latency. Mitigation: delegate only when
+    specialisation gives a measurable quality win; budget subagents.
+
+  \item \textbf{Sycophancy:} telling the user what they want to hear rather than
+    the accurate answer. Particularly dangerous in report-generation and evaluation
+    agents. Measured by checking whether the agent contradicts demonstrably false
+    user premises.
+\end{itemize}
 

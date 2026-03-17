@@ -5,17 +5,204 @@
 
 \subsection{Orchestrator-subagent patterns}
 
-% TODO
+In an orchestrator-subagent architecture, a primary (orchestrator) agent decomposes a
+task and delegates sub-tasks to specialised child agents. The orchestrator maintains
+the high-level plan; subagents handle isolated, bounded work.
 
-\subsection{AutoGen, CrewAI, LangGraph}
+\textbf{Claude Code / Cowork implementation} (observed directly):
 
-% TODO
+\begin{itemize}
+  \item The orchestrator has access to an \texttt{Agent} tool that launches a subagent
+    as a subprocess. The subagent type determines which tools it receives
+    (e.g.\ \texttt{general-purpose}, \texttt{Explore}, \texttt{Plan}).
+
+  \item Subagents are \emph{isolated}: each receives a fresh context containing only
+    the task prompt passed by the orchestrator, plus any tool results it generates.
+    They do not share the orchestrator's conversation history.
+
+  \item Subagents can be run \textbf{in parallel} (multiple \texttt{Agent} tool calls
+    in one assistant turn) when sub-tasks are independent, dramatically reducing
+    wall-clock time for multi-step research or multi-file operations.
+
+  \item A subagent can be \textbf{resumed} by passing its \texttt{agent\_id} back to
+    the \texttt{Agent} tool, preserving its full transcript for follow-up work without
+    re-incurring input token costs.
+
+  \item \textbf{Worktree isolation} (\texttt{isolation: "worktree"}) gives a subagent
+    its own git worktree so it can make changes without touching the orchestrator's
+    working tree; the worktree is auto-cleaned if no changes are made.
+\end{itemize}
+
+The key design tension is \emph{isolation vs.\ context sharing}: fully isolated
+subagents avoid context pollution but may duplicate work; shared-context agents
+collaborate more fluidly but risk token bloat and unintended interference.
+
+\subsection{AutoGen, CrewAI, LangGraph \& MetaGPT}
+
+\textbf{AutoGen} (Microsoft) builds agents around \emph{conversational turns}. Two
+agents (or a human proxy and an agent) exchange messages to jointly solve a task.
+\texttt{GroupChat} enables $n$-way conversations with a group manager that routes
+each turn to the right participant. Execution is controlled via reply functions and
+termination conditions.
+
+\textbf{CrewAI} models a multi-agent system as a \emph{crew} of workers with defined
+roles, backstories, goals, and tool access. Tasks are assigned to crew members and
+can run sequentially or in parallel. Encourages role-based thinking (researcher,
+writer, reviewer) rather than low-level code primitives.
+
+\textbf{LangGraph} provides a \emph{stateful graph} execution model. Agents and
+tools are nodes; edges encode control flow (sequential, conditional, cyclic):
+\begin{itemize}
+  \item State is a typed dict threaded through every node, making data flow
+    inspectable and making bugs reproducible.
+  \item Cycles are first-class: ReAct-style Thought/Action loops map naturally to
+    a graph edge pointing back to an earlier node.
+  \item \textbf{Human-in-the-loop:} interrupt nodes pause execution for human
+    review/approval before the graph continues.
+  \item Integrates with MCP servers via \texttt{langchain-mcp-adapters} for
+    plug-and-play tool server compatibility.
+\end{itemize}
+
+\textbf{MetaGPT} simulates a \emph{virtual software company} using SOPs:
+\begin{itemize}
+  \item Roles: product manager, architect, project manager, engineer, QA engineer.
+  \item Input: one-line requirement. Output: PRD, architecture doc, API specs, code,
+    tests.
+  \item \textbf{Standard Operating Procedures (SOPs):} human workflows encoded as
+    prompt sequences; each agent's output is the structured input to the next.
+  \item \textbf{Publish-subscribe message pool:} all inter-agent messages are
+    structured artefacts (documents, diagrams) stored in a global pool, decoupling
+    senders from receivers and reducing natural-language parsing errors.
+\end{itemize}
+
+\begin{center}
+\begin{tikzpicture}[
+  role/.style={rectangle, rounded corners=3pt, draw=aiblue, fill=infobg,
+               minimum width=1.8cm, minimum height=0.7cm, font=\scriptsize\bfseries,
+               align=center},
+  arr/.style={-{Stealth[length=5pt]}, thick, color=aigray}
+]
+  \node[role] (pm)   {Product\\Manager};
+  \node[role, right=1.3cm of pm]   (arch)  {Architect};
+  \node[role, right=1.3cm of arch] (projm) {Project\\Mgr};
+  \node[role, right=1.3cm of projm](eng)   {Engineer};
+  \node[role, right=1.3cm of eng]  (qa)    {QA};
+  \draw[arr] (pm)   -- node[above,font=\tiny]{PRD}    (arch);
+  \draw[arr] (arch) -- node[above,font=\tiny]{Design} (projm);
+  \draw[arr] (projm)-- node[above,font=\tiny]{Tasks}  (eng);
+  \draw[arr] (eng)  -- node[above,font=\tiny]{Code}   (qa);
+  \node[above=0.85cm of projm, font=\small\itshape, color=aigray]
+    {MetaGPT: one-line requirement $\rightarrow$ full codebase};
+\end{tikzpicture}
+\end{center}
+
+\textbf{MAS network topologies:}
+\begin{itemize}
+  \item \textbf{Centralized:} a central coordinator holds global knowledge and routes
+    tasks to agents. Easy to monitor; single point of failure.
+  \item \textbf{Decentralized:} agents share state only with their neighbours.
+    More fault-tolerant and modular; coordination is harder.
+  \item \textbf{Hierarchical:} tree structure with varying autonomy per layer.
+    Natural for enterprise workflows where high-level strategy delegates to
+    operational agents.
+  \item \textbf{Holonic:} agents are grouped into \emph{holons} (a holon is a unit
+    that is both a whole and a part). A holon's leading agent appears to the outside
+    world as a single agent; internally it manages a sub-team.
+  \item \textbf{Coalition / Team:} agents temporarily unite to achieve a shared goal,
+    disbanding afterward. Teams are more tightly coupled; coalitions are ad hoc.
+\end{itemize}
 
 \subsection{Inter-agent communication}
 
-% TODO
+Direct agent-to-agent integration suffers from an $n(n{-}1)/2$ integration-point
+problem: $n$ agents each needing a bespoke connector to every other agent. Protocol
+standards collapse this to $n$ connections to a shared message bus.
+
+\textbf{Model Context Protocol (MCP)} --- Anthropic, 2024:
+\begin{itemize}
+  \item Focus: one model, many tools. Standardises how a single agent enriches its
+    context via external servers.
+  \item Transport: JSON-RPC over stdio or HTTP/SSE.
+  \item Servers expose \emph{tools}, \emph{resources}, and \emph{prompts}.
+  \item Limitation for multi-agent: no native agent-to-agent discovery, no delta
+    streaming, no shared memory primitive.
+\end{itemize}
+
+\textbf{Agent Communication Protocol (ACP)} --- IBM (merged with A2A):
+\begin{itemize}
+  \item Focus: agent-to-agent communication across frameworks and organisations.
+  \item Transport: REST over standard HTTP (no SDK required; cURL/browser compatible).
+  \item \textbf{Async-first:} designed for long-running tasks; synchronous mode also
+    supported.
+  \item \textbf{Offline discovery:} agents embed metadata in their distribution
+    packages so other agents can discover capabilities without a central registry.
+  \item Enables orchestration across heterogeneous frameworks without custom glue.
+\end{itemize}
+
+\textbf{Agent2Agent Protocol (A2A)} --- Google:
+\begin{itemize}
+  \item Designed for cross-system and cross-organisation agent communication.
+  \item More natural for Google-ecosystem integrations.
+  \item Can coexist with ACP; each serves different primary use cases.
+\end{itemize}
+
+\begin{notebox}[title=MCP vs ACP in one line]
+  MCP = one model $\leftrightarrow$ many tools. \quad
+  ACP = many agents $\leftrightarrow$ many agents.
+\end{notebox}
+
+\subsection{Routers, state machines \& workflow engines}
+
+As agent pipelines grow, structured control-flow primitives prevent LLM-driven
+decision-making from becoming a runaway cost and reliability problem.
+
+\textbf{Router:} decides which tool, subagent, or branch to invoke. Implementations:
+\begin{itemize}
+  \item LLM classifier --- flexible, expensive; use for open-ended routing.
+  \item Embedding similarity match --- fast, moderate generality.
+  \item Deterministic rule --- fastest, requires explicit case enumeration.
+\end{itemize}
+
+\textbf{State machine / workflow engine:} agent progression through phases is
+explicit. Each state = a task phase (planning, retrieving, synthesising, reviewing);
+transitions are triggered by events or conditions. LangGraph implements this directly.
+
+Benefits over fully open-ended ReAct:
+\begin{itemize}
+  \item Deterministic paths for known task types (no unnecessary LLM calls).
+  \item Explicit human-in-the-loop checkpoints at state transitions.
+  \item Each state is independently testable.
+  \item Defined failure handling per state, rather than global ``if error, retry.''
+\end{itemize}
+
+\begin{notebox}[title=Agent vs workflow]
+  A \emph{workflow} uses fixed steps and deterministic transitions.
+  An \emph{agent} makes dynamic decisions at each step.
+  Many production ``agents'' are really workflows with one or two LLM-decision
+  nodes --- often the better engineering choice.
+\end{notebox}
 
 \subsection{Swarm intelligence analogies}
 
-% TODO
+Swarm intelligence studies how simple local rules among agents produce complex,
+emergent global behaviour without central control. Canonical examples: ant colony
+optimisation (ACO), particle swarm optimisation (PSO), bee colony algorithms.
+
+Analogies to LLM multi-agent systems:
+\begin{itemize}
+  \item \textbf{Stigmergy:} ants communicate indirectly via pheromone trails left in
+    the environment. In MAS, agents communicate indirectly via a shared message pool
+    (MetaGPT), a vector database, or a shared workspace --- they don't call each other
+    directly.
+  \item \textbf{Emergent division of labour:} no agent is told to specialise; roles
+    emerge from local interactions. In LLM swarms (e.g.\ Society of Mind prompting),
+    assigning diverse ``perspectives'' to agents produces richer collective outputs
+    than a single agent.
+  \item \textbf{Robustness through redundancy:} decentralised MAS topologies mirror
+    swarms: if one node fails, the system degrades gracefully rather than collapsing
+    (contrast with centralised architectures with a single point of failure).
+  \item \textbf{Limits of the analogy:} LLM agents are expensive, stateful, and
+    context-limited; true swarms use thousands of cheap stateless units. Current
+    multi-agent LLM systems typically operate at $n < 20$ agents.
+\end{itemize}
 

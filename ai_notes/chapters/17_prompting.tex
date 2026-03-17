@@ -5,17 +5,113 @@
 
 \subsection{Zero-shot \& few-shot prompting}
 
-% TODO
+\textbf{Zero-shot prompting} asks the model to perform a task without any examples,
+relying entirely on pretrained knowledge. Effective for clear, well-defined tasks where
+the instruction alone is sufficient.
+
+\textbf{Few-shot prompting} provides $k$ (typically 1--8) exemplar input/output pairs
+in the prompt before the actual query. The model infers the pattern and generalises to
+new inputs without weight updates. Key properties:
+
+\begin{itemize}
+  \item Demonstrated format strongly constrains output structure — useful for JSON,
+    tables, and constrained classification.
+  \item Example \emph{quality} matters more than quantity; misleading exemplars degrade
+    performance.
+  \item Sensitive to example ordering (recency bias); shuffling exemplars can improve
+    robustness.
+  \item In LangChain, \texttt{FewShotPromptTemplate} formalises this pattern,
+    composing a \texttt{PromptTemplate} with stored exemplar pairs and an
+    \texttt{ExampleSelector} for dynamic retrieval from a large pool.
+\end{itemize}
 
 \subsection{Chain-of-thought (CoT)}
 
-% TODO
+Chain-of-thought prompting encourages the model to emit a step-by-step reasoning trace
+before its final answer, substantially improving performance on arithmetic, commonsense,
+and multi-step symbolic reasoning tasks.
+
+\begin{itemize}
+  \item \textbf{Zero-shot CoT:} append ``\emph{Let's think step by step}'' (or
+    equivalent) to the prompt. Requires no worked examples.
+  \item \textbf{Few-shot CoT:} provide exemplar triples of (question, reasoning chain,
+    answer) so the model imitates the reasoning style and level of detail.
+  \item \textbf{Emergent property:} CoT is effective only above roughly 100B parameters
+    in base models; smaller models produce incoherent rationales that hurt accuracy.
+    Instruction-tuning (e.g.\ IBM Granite Instruct, GPT-4o-mini) transfers CoT
+    capability to much smaller models via distillation on CoT traces.
+\end{itemize}
+
+\textbf{CoT vs.\ prompt chaining --- a critical distinction:}
+\begin{itemize}
+  \item \emph{CoT} elicits multi-step reasoning \emph{within a single prompt turn};
+    reasoning lives in the model's output for that turn.
+  \item \emph{Prompt chaining} sequences multiple API calls, where the output of one
+    call becomes context for the next --- a structural/orchestration pattern, not a
+    reasoning one.
+\end{itemize}
+
+\textbf{Extended thinking} (Claude) extends CoT with a dedicated scratchpad block
+that is invisible in the conversation history, enabling deeper reasoning without
+consuming visible response tokens. Each thinking block carries a cryptographic
+signature for tamper detection in multi-turn loops (see Chapter~52).
+
+\begin{paperbox}[title=ReAct --- CoT meets tool use (Yao et al.\, 2023)]
+  ReAct integrates chain-of-thought \emph{Thought} steps with \emph{Action} steps
+  (tool invocations) and \emph{Observation} steps (tool results) in an alternating
+  loop. This grounds reasoning in real-world evidence and reduces hallucination.
+  Full coverage in Chapter~23.
+\end{paperbox}
 
 \subsection{Structured output prompting}
 
-% TODO
+Agentic pipelines require machine-parseable outputs. A tool call with a malformed
+JSON argument crashes the loop; a stray natural-language prefix breaks a downstream
+parser. Structured output is therefore load-bearing, not cosmetic.
+
+\textbf{Techniques (roughly increasing reliability):}
+\begin{itemize}
+  \item Describe the target schema in natural language within the system prompt.
+  \item Provide a few-shot example of the exact JSON/XML format expected.
+  \item Use API-level JSON mode (OpenAI) or tool schemas (Anthropic) to constrain the
+    model's decoding to syntactically valid output.
+  \item Use \texttt{PromptTemplate} classes (LangChain, LlamaIndex) that bake the
+    format requirement into a reusable, parameterised template object.
+\end{itemize}
+
+\textbf{Tool schema design} (see also Chapter~20) defines the structured interface
+the model uses to call external functions: unique name, natural-language description,
+parameter names/types, required vs.\ optional fields. The description is the
+primary signal the model uses to decide \emph{when} to invoke the tool.
 
 \subsection{System prompts \& jailbreaks}
 
-% TODO
+The \textbf{system prompt} establishes the model's role, constraints, and behavioural
+guidelines before the conversation begins. It is the primary mechanism for customising
+base model behaviour without fine-tuning.
+
+\textbf{In agentic systems the system prompt typically:}
+\begin{itemize}
+  \item Defines the agent's persona, available tools, and expected output format.
+  \item Lists prohibited actions and safety rules (``\emph{in-context}'' controls).
+  \item Embeds Skills documentation (e.g.\ Cowork's SKILL.md files) encoding task-specific
+    best practices that fire reliably for specific requests.
+  \item Is cached at the API level (Anthropic prompt caching, OpenAI prefix caching)
+    so it does not re-incur compute cost on every turn.
+\end{itemize}
+
+\textbf{The fundamental weakness of system-prompt safety:} in-context instructions
+only constrain the model if it ``chooses'' to follow them. Sufficiently adversarial
+inputs --- prompt injection via observed web/email content, context overflow, or
+multi-step reasoning-around-the-rules --- can cause the model to ignore them.
+This is why out-of-process runtime enforcement (OpenShell, VM sandboxing) is needed
+as a backstop (Chapter~42).
+
+\begin{warnbox}[title=Jailbreaks]
+  Jailbreak techniques include: role-play framing (``pretend you have no restrictions''),
+  token manipulation (unusual Unicode, homoglyphs), base64 encoding of forbidden
+  requests, prompt injection via tool results, and suffix-appending adversarial
+  attacks. Defences: constitutional AI (Chapter~43), input/output classifiers,
+  and runtime enforcement (Chapter~42).
+\end{warnbox}
 

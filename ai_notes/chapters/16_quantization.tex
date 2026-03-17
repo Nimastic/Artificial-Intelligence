@@ -3,19 +3,116 @@
 
 \section{Quantization \& Model Compression}
 
+Quantization reduces the numerical precision of model weights (and optionally
+activations) from 32-bit floating point to smaller representations. The goal is to
+reduce memory footprint, memory bandwidth requirements, and sometimes compute cost,
+with minimal impact on output quality.
+
 \subsection{Post-training quantization (PTQ)}
 
-% TODO
+\textbf{PTQ} quantizes a fully trained model without any re-training. It is fast and
+requires only a small calibration dataset.
+
+\textbf{Weight quantization.} Weights $W$ are mapped to discrete levels:
+\[
+  W_q = \text{round}\!\left(\frac{W}{\Delta}\right), \quad
+  \Delta = \frac{\max(W) - \min(W)}{2^b - 1}
+\]
+where $b$ is the bit-width and $\Delta$ is the scale factor (learned per tensor,
+channel, or group).
+
+\textbf{Granularity.}
+\begin{itemize}
+  \item \textbf{Per-tensor:} single scale for entire weight matrix. Cheapest; most
+    accuracy loss.
+  \item \textbf{Per-channel:} separate scale per output channel. Better accuracy with
+    modest overhead.
+  \item \textbf{Per-group (block quantization):} scale per group of $g$ weights
+    (e.g.\ $g=128$). Used in GPTQ and AWQ; good balance of accuracy and efficiency.
+\end{itemize}
+
+\textbf{Activation quantization.} Quantizing activations at runtime (as opposed to
+just weights) is harder because activation distributions vary per input. Dynamic
+quantization recomputes scales on-the-fly; static quantization uses calibration
+statistics.
 
 \subsection{Quantization-aware training (QAT)}
 
-% TODO
+\textbf{QAT} simulates quantization noise during training so the model learns to be
+robust to it. Weights and activations are quantized in the forward pass using
+straight-through estimators (STE) for gradients. QAT consistently outperforms PTQ,
+especially at very low bit-widths (INT4 and below), at the cost of requiring a
+training run.
+
+\textbf{FP8 training} (H100): NVIDIA Transformer Engine supports mixed-precision
+training with FP8 (E4M3 or E5M2) for matrix multiplications. The master weights are
+kept in BF16/FP32; FP8 is used for the compute pass. This gives roughly $2\times$
+throughput vs FP16 on H100 tensor cores.
 
 \subsection{GPTQ, AWQ, GGUF formats}
 
-% TODO
+\textbf{GPTQ} (Frantar et al.\ 2023): second-order PTQ method. Uses the Hessian of
+the weight quantization error to iteratively quantize weights while compensating for
+errors using the remaining unquantized weights in the same row. Achieves high quality
+at 4-bit weight quantization with a one-shot calibration pass. Standard for 4-bit LLM
+deployment on GPU.
+
+\textbf{AWQ} (Activation-aware Weight Quantization, Lin et al.\ 2024): observes that
+not all weights are equally important --- weights corresponding to \emph{salient input
+channels} (those with large activation magnitudes) should be quantized more carefully.
+AWQ scales salient channels before quantization so their effective precision is
+preserved. Faster calibration than GPTQ with competitive accuracy; widely used in
+TGI and vLLM.
+
+\textbf{GGUF} (llama.cpp): file format for storing quantized models for CPU/edge
+inference. Supports a range from Q2\_K to Q8\_0 (2-bit to 8-bit), with mixed-precision
+``K-quants'' that use higher precision for attention weights and lower for FFN weights.
+The primary format for local inference with llama.cpp, Ollama, and LM Studio.
+
+\begin{notebox}
+  Common deployment rule of thumb: GPTQ/AWQ INT4 for GPU serving, GGUF Q4/Q5 for CPU
+  inference. Both achieve perplexity within 1--3\% of the FP16 baseline on typical
+  LLM sizes.
+\end{notebox}
 
 \subsection{Pruning \& distillation}
 
-% TODO
+\textbf{Pruning} removes weights or entire structures (heads, layers) whose contribution
+to the output is small.
+\begin{itemize}
+  \item \textbf{Unstructured pruning:} zeroes individual weights based on magnitude or
+    gradient sensitivity. High compression ratios possible, but sparse weights require
+    custom hardware/kernels to benefit at inference.
+  \item \textbf{Structured pruning:} removes entire heads, channels, or layers. Output
+    is a smaller dense model that runs efficiently on standard hardware. Used in DistilBERT
+    (half the layers of BERT) and ShearedLLaMA.
+\end{itemize}
 
+\textbf{Knowledge distillation.} A smaller \emph{student} model is trained to mimic a
+larger \emph{teacher} model's output distribution, intermediate representations, or
+both. The student learns a compressed version of the teacher's knowledge.
+\begin{itemize}
+  \item \textbf{Response distillation:} student minimises KL divergence from the
+    teacher's soft output probabilities (softer labels than hard ground-truth carry
+    more information about the distribution).
+  \item \textbf{Feature distillation:} student additionally matches intermediate
+    layer activations of the teacher.
+  \item \textbf{Data augmentation via distillation:} generate synthetic training data
+    from the teacher to train the student (used in TinyLlama, Orca, etc.).
+\end{itemize}
+
+\begin{paperbox}[title={BitNet / 1-bit LLMs (Ma et al.\ 2024)}]
+  Trains LLMs with weights constrained to $\{-1, 0, +1\}$ (BitNet\,b1.58). Each weight
+  is represented in 1.58\,bits on average. Inference can replace matrix multiplications
+  with addition/subtraction operations. At 3B+ parameters, BitNet\,b1.58 matches
+  FP16 LLM quality while using significantly less memory and energy.
+  Requires training from scratch (not a PTQ method); the extreme low-precision
+  constraint must be baked into the training objective.
+\end{paperbox}
+
+\begin{warnbox}
+  Distillation risks: the student inherits biases and errors from the teacher, including
+  hallucinations. Benchmark overfitting is a concern when the teacher is used to generate
+  training data. Legal gray area exists when commercial model outputs are used as
+  distillation data without license clearance (see also Chapter~52).
+\end{warnbox}

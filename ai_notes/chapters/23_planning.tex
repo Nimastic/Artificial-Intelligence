@@ -13,7 +13,126 @@
 
 \subsection{Chain-of-thought \& scratchpads}
 
-% TODO
+Chain-of-thought prompting produces a step-by-step reasoning trace inside the model's
+output (see Chapter~17 for prompting mechanics). In the context of planning, CoT
+enables a model to \emph{decompose} a complex goal into sub-goals before committing
+to an action.
+
+\textbf{Scratchpad variants:}
+\begin{itemize}
+  \item \textbf{Visible CoT:} reasoning is part of the assistant turn and is seen by
+    the user. Interpretable but verbose.
+  \item \textbf{Extended thinking / thinking blocks:} reasoning in a hidden scratchpad
+    that is signed but not shown to the user (Anthropic Claude o-style). Allows deeper
+    multi-step reasoning without polluting the response.
+  \item \textbf{Scratchpad in-weights:} test-time compute scaling (o1/o3 style) uses
+    learned ``thinking tokens'' at inference; see Chapter~49.
+\end{itemize}
+
+\subsection{ReAct \& agent planning loops}
+
+\begin{paperbox}[title=ReAct: Synergizing Reasoning and Acting (Yao et al.\, 2023)]
+  ReAct interleaves chain-of-thought reasoning traces with concrete tool-use actions
+  in a tight loop, grounding abstract reasoning in real-world observations.
+\end{paperbox}
+
+\textbf{The ReAct loop} alternates three step types in sequence:
+
+\begin{enumerate}
+  \item \textbf{Thought} --- the model reasons about its current state, what
+    information it lacks, and what action to take next (CoT-style natural language).
+  \item \textbf{Action} --- the model invokes a tool (search, calculator, API call,
+    code execution) with structured arguments.
+  \item \textbf{Observation} --- the tool result is returned and appended to context;
+    the model reads it and produces the next Thought.
+\end{enumerate}
+
+The loop terminates when the model emits a \textbf{Finish} action with a final
+answer, when a maximum iteration count is reached, or when a confidence threshold
+is satisfied.
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=2.2cm,
+  box/.style={rectangle, rounded corners=4pt, draw=aiblue, fill=infobg,
+              minimum width=2.4cm, minimum height=0.9cm, align=center,
+              font=\small\bfseries},
+  finish/.style={rectangle, rounded corners=4pt, draw=aiteal, fill=okgreen,
+                 minimum width=2.4cm, minimum height=0.9cm, align=center,
+                 font=\small\bfseries},
+  arr/.style={-{Stealth[length=6pt]}, thick, color=aigray}
+]
+  \node[box]   (thought)   {Thought};
+  \node[box, right=of thought]  (action)    {Action\\(Tool Call)};
+  \node[box, right=of action]   (obs)       {Observation\\(Tool Result)};
+  \node[finish, below=1.2cm of action] (finish) {Finish};
+
+  \draw[arr] (thought) -- (action);
+  \draw[arr] (action)  -- (obs);
+  \draw[arr] (obs.north) -- ++(0,0.7) -| (thought.north)
+    node[midway, above, font=\scriptsize, color=aigray] {iterate};
+  \draw[arr, dashed] (action.south) -- (finish)
+    node[midway, right, font=\scriptsize, color=aiteal] {final answer};
+\end{tikzpicture}
+\end{center}
+
+\textbf{Advantages over pure CoT:}
+\begin{itemize}
+  \item Reduces hallucination by grounding each reasoning step in retrieved evidence.
+  \item Enables the model to course-correct mid-loop when an observation contradicts
+    its prior reasoning.
+  \item Produces an interpretable audit trail: thought → action → observation
+    triples are logged (see JSONL session format, Chapter~52).
+\end{itemize}
+
+\textbf{Multi-agent ReAct:} a large orchestrator model handles high-level reasoning
+and Thought/Finish steps while delegating Action steps (tool calls) to smaller
+specialised subagents.
+
+\textbf{ReWOO (Reason Without Observation):}
+An alternative to ReAct that separates the planning and execution phases. Rather than
+interleaving Thought and Observation, ReWOO generates a complete plan upfront (a
+sequence of tool calls with dependencies), then executes them, then synthesises the
+results. Benefits: fewer LLM calls (cheaper), plan is inspectable before execution.
+Cost: cannot course-correct mid-plan based on intermediate observations.
+
+\subsection{Plan-and-Execute}
+
+Plan-and-Execute separates agent reasoning into two distinct phases, unlike ReAct
+which interleaves them:
+
+\begin{enumerate}
+  \item \textbf{Planner phase:} the model receives the goal and produces a structured
+    multi-step plan \emph{before any tool is called}. Example: ``1.~gather company
+    background, 2.~retrieve financial data, 3.~compare competitors, 4.~write report.''
+  \item \textbf{Executor phase:} a (potentially different, cheaper) model or module
+    carries out each step in sequence, passing results forward.
+\end{enumerate}
+
+\textbf{Compared to ReAct:}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+ & \textbf{ReAct} & \textbf{Plan-and-Execute} \\
+\midrule
+Planning & Interleaved with actions & Upfront, then separate \\
+Adaptability & High (course-corrects mid-loop) & Low (plan commits early) \\
+LLM calls & More (each step) & Fewer for planning \\
+Debuggability & Harder (emergent path) & Easier (plan is inspectable) \\
+Best for & Open-ended, adaptive tasks & Structured, predictable tasks \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{ReWOO} is a close relative: both front-load planning; ReWOO additionally
+chains tool-call dependencies explicitly in the plan so the executor knows which
+earlier results to substitute (avoiding redundant re-retrieval).
+
+\textbf{Hybrid approaches:} production agents often combine patterns --- an
+orchestrator produces a plan (Plan-and-Execute style), then each step executes
+using a ReAct inner loop that handles step-level surprises, with human-in-the-loop
+approval at major plan transitions (LangGraph interrupt nodes).
 
 \subsection{o1 / o3 test-time compute scaling}
 

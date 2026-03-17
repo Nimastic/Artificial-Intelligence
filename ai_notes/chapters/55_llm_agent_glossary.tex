@@ -1,0 +1,190 @@
+% chapters/55_llm_agent_glossary.tex
+% Part of: AI / LLM / Agents / Hardware Notes
+
+\section{General-purpose LLM + Agent Map}
+
+\subsection{How to use this chapter}
+
+This chapter is a navigation layer for the rest of these notes: quick definitions, how concepts connect, and where each idea belongs (training, inference, or agent systems).
+
+\subsection{Where each concept belongs in this repo}
+
+\textbf{LLM training and adaptation}
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Pretraining} (Chapter 11): learning broad language/world patterns from large raw corpora.
+    \item \textbf{Fine-tuning, SFT, LoRA} (Chapter 12): specialization for domain/task behavior.
+    \item \textbf{RLHF / preference optimization} (Chapter 13): shaping behavior with preference signals.
+    \item \textbf{Distillation} (cross-cutting, mostly training): transferring behavior from teacher to student.
+\end{itemize}
+
+\textbf{Inference and deployment}
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Inference and decoding} (Chapter 15): temperature, top-k, top-p, caching, batching.
+    \item \textbf{Quantization} (Chapter 16): reducing numerical precision for speed and memory.
+    \item \textbf{RAG} (Chapter 18): retrieval pipeline to ground generation at inference time.
+\end{itemize}
+
+\textbf{Agent systems}
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Agent fundamentals} (Chapter 19): loop, planning, acting, reflection.
+    \item \textbf{Tool use / function calling / MCP} (Chapter 20): external actions and integrations.
+    \item \textbf{Memory and planning} (Chapters 22--23): state, persistence, and decision flow.
+\end{itemize}
+
+\subsection{Distillation vs Quantization (high-value distinction)}
+
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Distillation}: changes what the model learns by training a smaller student to imitate a larger teacher.
+    \item \textbf{Quantization}: changes how the learned weights are stored/executed by using lower precision.
+\end{itemize}
+
+Rule of thumb: distillation is mostly a \textit{training-time} method; quantization is mostly an \textit{inference/deployment-time} method.
+
+\subsection{Distillation: practical trade-offs}
+
+\textbf{Pros}
+\begin{itemize}[leftmargin=1.5em]
+    \item Better cost-latency-quality trade-off than training small models from scratch.
+    \item Good path to task-specific students (coding, math, support workflows).
+    \item Cleaner teacher outputs can provide a strong learning signal.
+\end{itemize}
+
+\textbf{Cons}
+\begin{itemize}[leftmargin=1.5em]
+    \item Teacher errors and style artifacts transfer to the student.
+    \item Student capability ceiling is often tied to teacher quality.
+    \item Overusing synthetic outputs can reduce diversity and robustness.
+\end{itemize}
+
+\subsection{Quantization: practical intuition + numeric example}
+
+Quantization compresses weight values into fewer buckets.
+
+\begin{notebox}[title=Bucket example]
+Suppose a layer's weights in one tensor range from $-1.0$ to $1.0$, and we use 4-bit quantization.
+
+4-bit gives $2^4 = 16$ buckets.
+
+Bucket width is:
+\[
+\Delta = \frac{1.0 - (-1.0)}{16 - 1} = \frac{2.0}{15} \approx 0.1333
+\]
+
+For a weight $w = 0.18372642$:
+\[
+q = \text{round}\left(\frac{w - (-1.0)}{\Delta}\right)
+  = \text{round}\left(\frac{1.18372642}{0.1333}\right)
+  = 9
+\]
+
+Dequantized value:
+\[
+\hat{w} = -1.0 + 9 \cdot 0.1333 \approx 0.1997
+\]
+
+So the exact value $0.18372642$ is stored as bucket index $9$, then reconstructed approximately as $0.1997$.
+\end{notebox}
+
+\textbf{Why this helps}
+\begin{itemize}[leftmargin=1.5em]
+    \item Lower memory footprint (VRAM/RAM)
+    \item Faster inference on many hardware targets
+    \item Enables larger models on local/edge devices
+\end{itemize}
+
+\textbf{What can degrade}
+\begin{itemize}[leftmargin=1.5em]
+    \item Multi-step reasoning, coding precision, and long-context stability can drop at aggressive bit-widths.
+\end{itemize}
+
+\subsection{Minimal glossary (highest-yield)}
+
+\begin{description}[leftmargin=1.5em, style=nextline]
+    \item[Pretraining] Learn broad priors from large raw corpora.
+    \item[Fine-tuning] Specialize a pretrained model.
+    \item[Distillation] Teach a smaller model from a stronger model.
+    \item[Quantization] Compress numeric representation for efficiency.
+    \item[RAG] Retrieve documents first, then generate grounded answers.
+    \item[Agent] A model-driven system that plans and uses tools.
+\end{description}
+
+\subsection{Agent types taxonomy}
+
+Five canonical agent types by increasing capability (Russell \& Norvig):
+
+\begin{description}[leftmargin=1.5em, style=nextline]
+  \item[Simple reflex agent]
+    Condition-action rules only. No memory, no world model. Works solely in fully
+    observable deterministic environments. Example: thermostat, traffic light.
+
+  \item[Model-based reflex agent]
+    Maintains an internal world model updated each turn; handles partial observability
+    by tracking unobserved state. Still uses condition-action rules for decisions.
+
+  \item[Goal-based agent]
+    Has explicit goals; uses search or planning to find action sequences that achieve
+    them. Requires reasoning about future states. Example: route-finding robot.
+
+  \item[Utility-based agent]
+    Extends goal-based agents with a utility function (real-valued desirability per
+    state). Enables rational choice when goals conflict or are achievable to varying
+    degrees.
+
+  \item[Learning agent]
+    Improves performance from experience. Components: performance element (acts),
+    critic (evaluates), learning element (updates), problem generator (explores).
+    LLMs trained via RLHF/DPO are learning agents at training time; at inference time
+    they are typically goal- or utility-based.
+\end{description}
+
+\subsection{Agent architecture components}
+
+A complete agent system integrates five functional subsystems:
+
+\begin{center}
+\begin{tikzpicture}[
+  comp/.style={rectangle, rounded corners=4pt, draw=aiblue, fill=infobg,
+               minimum width=2.6cm, minimum height=0.8cm, align=center,
+               font=\small\bfseries},
+  mem/.style={rectangle, rounded corners=4pt, draw=aipurple, fill=codebg,
+              minimum width=2.6cm, minimum height=0.75cm, align=center,
+              font=\small\bfseries},
+  arr/.style={-{Stealth[length=6pt]}, thick, color=aigray},
+  node distance=0.8cm and 1.4cm
+]
+  \node[comp] (percept) {Perception};
+  \node[comp, right=1.3cm of percept] (reason)  {Reasoning};
+  \node[comp, right=1.3cm of reason]  (plan)    {Planning};
+  \node[comp, right=1.3cm of plan]    (exec)    {Execution};
+  \node[mem,  below=1.0cm of reason, xshift=1.1cm] (mem) {Memory};
+
+  \draw[arr] (percept) -- (reason);
+  \draw[arr] (reason)  -- (plan);
+  \draw[arr] (plan)    -- (exec);
+  \draw[arr] (reason.south)  -- (mem.north west);
+  \draw[arr] (plan.south)    -- (mem.north east);
+  \draw[arr] (mem.west) -- ++(-0.5,0) |- (reason.south west);
+\end{tikzpicture}
+\end{center}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Perception:} visual (CV), auditory (ASR), textual (NLP/NER),
+    environmental (sensor fusion), and predictive (anticipating future states).
+  \item \textbf{Reasoning:} context understanding, pattern recognition --- the LLM
+    forward pass, optionally with chain-of-thought (Chapter~17).
+  \item \textbf{Planning:} goal-setting, decision-making. ReAct, ReWOO, MCTS (Chapter~23).
+  \item \textbf{Execution:} API calls, tool invocations, code execution (Chapter~20).
+  \item \textbf{Memory:} working (context window), episodic (logs), semantic (vector DB),
+    procedural (RL / fine-tuning) (Chapter~22).
+\end{itemize}
+
+\subsection{One mental model}
+
+\begin{itemize}[leftmargin=1.5em]
+    \item Pretraining gives the base capability.
+    \item Fine-tuning aligns it to a job.
+    \item Distillation lowers serving cost.
+    \item Quantization lowers runtime footprint.
+    \item RAG adds external knowledge at inference time.
+    \item Agent tooling turns answers into actions.
+\end{itemize}

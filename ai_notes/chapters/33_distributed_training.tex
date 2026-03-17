@@ -3,23 +3,125 @@
 
 \section{Distributed Training}
 
+Modern large-scale LLM training combines multiple parallelism strategies simultaneously.
+The NVIDIA Megatron team coined the term \textbf{5D Parallelism} to describe the five
+orthogonal dimensions along which a training job can be distributed: Data (DP), Tensor
+(TP), Pipeline (PP), Sequence/Context (SP/CP), and Expert (EP).
+
+\begin{notebox}
+  Each parallelism dimension targets a different bottleneck. Real training runs combine
+  all five: a typical 70B job might use DP$\times$8, TP$\times$4, PP$\times$4, with
+  SP inside TP regions, and EP added for MoE variants.
+\end{notebox}
+
 \subsection{Data parallelism (DDP)}
 
-% TODO
+\textbf{Data parallelism} replicates the full model on every GPU and splits the global
+mini-batch across GPUs. Each GPU computes a full forward and backward pass on its shard,
+then gradients are synchronised with an all-reduce before the optimiser step.
+
+\textbf{DDP (DistributedDataParallel)} in PyTorch buckets gradients and overlaps
+all-reduce communication with the tail of the backward pass to hide latency.
+
+\textbf{Fully Sharded Data Parallel (FSDP)} (see \S\,\ref{sub:fsdp}) extends DDP by
+sharding optimiser states, gradients, \emph{and} parameters across DP ranks.
 
 \subsection{Tensor parallelism}
 
-% TODO
+\textbf{Tensor Parallelism (TP)} splits individual weight matrices across GPUs.
+For a linear layer $Y = XW$ with $W \in \mathbb{R}^{d \times k}$:
+
+\begin{itemize}
+  \item \textbf{Column-parallel:} $W$ is split column-wise into $[W_1 | W_2]$ across
+    $N$ GPUs. Each GPU computes $XW_i$ and the outputs are concatenated via all-gather.
+  \item \textbf{Row-parallel:} $W$ is split row-wise; the input $X$ must be split
+    correspondingly, and partial sums are reduced across GPUs with all-reduce.
+\end{itemize}
+
+Megatron-LM implements column-parallel and row-parallel linear layers with a single
+all-reduce per transformer layer in each direction. Because all-reduce must complete
+before the next layer, TP requires extremely low-latency interconnects (NVLink within
+a node; TP is almost never used across nodes).
 
 \subsection{Pipeline parallelism}
 
-% TODO
+\textbf{Pipeline Parallelism (PP)} assigns contiguous groups of transformer layers to
+different GPUs (``stages''). A micro-batch flows through each stage in sequence, then
+the next micro-batch fills the pipeline. The \textbf{pipeline bubble} --- idle time
+when a stage is waiting for upstream activations --- is the main inefficiency.
 
-\subsection{FSDP \& ZeRO optimizer}
+\textbf{1F1B schedule} (Megatron-LM): interleaves forward and backward micro-batches
+across stages. Each stage alternates one forward pass with one backward pass, reducing
+peak pipeline bubble from $O(p)$ to $O(1)$ relative to the number of stages $p$.
 
-% TODO
+\begin{paperbox}[title={DualPipe (DeepSeek-V3, 2025)}]
+  Bidirectional pipeline where micro-batches travel \emph{both} forward and backward
+  through the pipeline simultaneously. Computation and communication are fully
+  overlapped, reducing bubble fraction to near zero. Used in DeepSeek-V3 training
+  alongside EP for MoE layers.
+\end{paperbox}
 
-\subsection{3D parallelism}
+\subsection{FSDP \& ZeRO optimizer}\label{sub:fsdp}
 
-% TODO
+A single GPU cannot hold the full state of a large model. The \textbf{ZeRO} optimizer
+(Zero Redundancy Optimizer, Microsoft DeepSpeed) eliminates the redundant copies of
+state that vanilla DP creates.
 
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Stage} & \textbf{What is sharded} & \textbf{Memory saving (vs.\ DP)} \\
+\midrule
+ZeRO-1 & Optimiser states & $4\times$ \\
+ZeRO-2 & + Gradients & $8\times$ \\
+ZeRO-3 & + Parameters & $64\times$ (linear in world size) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+PyTorch's \textbf{FSDP} implements ZeRO-3 natively: during the forward pass each GPU
+all-gathers the full parameter shard, uses it, then immediately discards it. Gradients
+are accumulated locally, then reduce-scattered. Only $1/N$ of the parameters live on
+each GPU at rest.
+
+\textbf{ZeRO-Infinity} (DeepSpeed) extends sharding to CPU RAM and NVMe storage,
+enabling trillion-parameter training at the cost of higher latency for offloaded data.
+
+\textbf{Frameworks:}
+\begin{itemize}
+  \item \textbf{Megatron-LM} (NVIDIA): reference implementation of TP + PP with
+    1F1B scheduling; used to train GPT-3, Llama, Mistral, and most NVIDIA-scale models.
+  \item \textbf{DeepSpeed} (Microsoft): ZeRO optimizer, activation checkpointing,
+    offloading to CPU/NVMe. Often combined with Megatron via \emph{Megatron-DeepSpeed}.
+  \item \textbf{Transformer Engine} (NVIDIA): mixed-precision training with FP8 on H100
+    hardware; integrates directly into Megatron-LM and NeMo.
+  \item \textbf{Megatron Bridge}: adapter to use Megatron-LM parallelism with other
+    training stacks.
+\end{itemize}
+
+\subsection{3D parallelism \& Sequence/Context parallelism}
+
+\textbf{3D parallelism} combines DP + TP + PP and is the standard recipe for hundred-
+billion-scale training. Each node group runs TP internally (NVLink); PP connects node
+groups sequentially; DP replicates the entire pipeline.
+
+\textbf{Sequence Parallelism (SP)} (Megatron-LM): splits the sequence dimension along
+the portions of a layer (LayerNorm, Dropout) that lie outside the TP-parallelised
+matrix multiplications. This removes the remaining activation memory bottleneck in TP.
+
+\textbf{Context Parallelism (CP)}: for very long contexts (100K+ tokens), the sequence
+dimension is split across GPUs even during the attention computation itself. Ring
+Attention and similar algorithms enable cross-GPU attention by passing keys and values
+in a ring pattern, so each GPU sees the full sequence for attention while storing only
+a shard of the activations.
+
+\textbf{Expert Parallelism (EP)}: in Mixture-of-Experts (MoE) models each expert is
+assigned to a different GPU. Token routing via all-to-all communication dispatches each
+token to its selected expert and gathers the results back. EP combined with TP/PP/DP
+gives \emph{5D parallelism}. See also: Mixtral of Experts, DeepSeek-MoE.
+
+\begin{intuitionbox}
+  Think of 5D parallelism as slicing a 5-dimensional tensor (model $\times$ data $\times$
+  layers $\times$ sequence $\times$ experts) across a cluster of GPUs. Each dimension
+  targets a different memory or compute bottleneck.
+\end{intuitionbox}

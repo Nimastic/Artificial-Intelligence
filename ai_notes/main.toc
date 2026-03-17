@@ -292,3 +292,11 @@
 \contentsline {subsection}{\numberline {54.2}CS3263 — Foundations of AI}{10}{subsection.54.2}%
 \contentsline {subsection}{\numberline {54.3}CS4246 — AI Planning and Decision Making}{10}{subsection.54.3}%
 \contentsline {subsection}{\numberline {54.4}MA4275 — Mathematics for Reinforcement Learning}{10}{subsection.54.4}%
+\contentsline {section}{\numberline {55}Distillation, Quantization, and LLM/Agent Glossary}{11}{section.55}%
+\contentsline {subsection}{\numberline {55.1}Distillation: Pros and Cons}{11}{subsection.55.1}%
+\contentsline {subsection}{\numberline {55.2}Quantization}{11}{subsection.55.2}%
+\contentsline {subsection}{\numberline {55.3}Distillation vs Quantization}{12}{subsection.55.3}%
+\contentsline {subsection}{\numberline {55.4}Fast Refresher: Common LLM Terms}{12}{subsection.55.4}%
+\contentsline {subsection}{\numberline {55.5}Fast Refresher: Common Agent Terms}{13}{subsection.55.5}%
+\contentsline {subsection}{\numberline {55.6}Highest-yield Terms (Quick Memory)}{14}{subsection.55.6}%
+\contentsline {subsection}{\numberline {55.7}One Clean Mental Model}{14}{subsection.55.7}%

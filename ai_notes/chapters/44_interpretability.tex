@@ -3,23 +3,155 @@
 
 \section{Interpretability \& Mechanistic Analysis}
 
+Mechanistic interpretability (MI) aims to reverse-engineer neural networks into human-
+understandable algorithms. Rather than treating a model as a black box, MI tries to
+identify the \emph{circuits}, \emph{features}, and \emph{representations} the model
+has learned and explain \emph{why} it produces particular outputs.
+
 \subsection{Probing classifiers}
 
-% TODO
+A \textbf{probing classifier} trains a simple linear (or shallow MLP) classifier on top
+of a frozen model's internal activations to test whether a particular concept is linearly
+encoded at a given layer.
+
+\begin{itemize}
+  \item High probe accuracy $\Rightarrow$ the concept is linearly represented at that
+    layer. Low accuracy $\Rightarrow$ either the concept is not encoded, or it is encoded
+    non-linearly.
+  \item \textbf{Limitation:} a probe showing accuracy does not prove the model
+    \emph{uses} that representation for its downstream behaviour. Probing is a
+    necessary but not sufficient condition for functional relevance.
+  \item Common probes: part-of-speech tags on intermediate layers, world-state probes
+    in game-playing models (Othello-GPT), truth probes on factual knowledge.
+\end{itemize}
 
 \subsection{Superposition hypothesis}
 
-% TODO
+Neural networks represent far more features than they have neurons. The
+\textbf{superposition hypothesis} (Elhage et al.\ 2022, Anthropic) explains how:
+
+\begin{itemize}
+  \item Features (interpretable properties of the world) are encoded as \emph{directions
+    in activation space}, not as individual neurons.
+  \item The same neuron participates in encoding multiple features simultaneously
+    (\textbf{polysemanticity}): a single neuron may respond to ``banana'',
+    ``yellow'', \emph{and} ``the word `the'\,''.
+  \item By spreading features across nearly-orthogonal directions in a high-dimensional
+    space, the network can represent $N \gg d$ features in a $d$-dimensional activation
+    space. The cost is interference between co-activating features.
+  \item Features with lower frequency and higher importance get cleaner, more
+    dedicated representations; rare but important features can avoid superposition.
+\end{itemize}
+
+\begin{intuitionbox}
+  Superposition is the neural-network analogue of compressed sensing: you can recover
+  $N$ sparse signals from $d < N$ measurements if the signals are rarely co-active.
+  The network exploits the sparsity of natural concept co-occurrence.
+\end{intuitionbox}
 
 \subsection{Sparse autoencoders (SAE)}
 
-% TODO
+Sparse autoencoders are the primary tool for \emph{decomposing} superposed
+representations into interpretable monosemantic features.
+
+\textbf{Architecture.} An SAE has an encoder that maps an activation vector
+$\mathbf{x} \in \mathbb{R}^d$ to a sparse latent $\mathbf{f} \in \mathbb{R}^m$ ($m \gg d$),
+and a decoder that reconstructs $\hat{\mathbf{x}}$:
+\[
+  \mathbf{f} = \text{ReLU}(W_e \mathbf{x} + \mathbf{b}_e), \quad
+  \hat{\mathbf{x}} = W_d \mathbf{f} + \mathbf{b}_d
+\]
+Trained with an $L_2$ reconstruction loss plus an $L_1$ sparsity penalty on $\mathbf{f}$.
+The $L_1$ penalty forces each activation to be explained by only a few features.
+
+\textbf{Interpretation.} Each dimension of $\mathbf{f}$ corresponds to a ``feature'';
+the decoder column $W_d[:, i]$ is that feature's direction in activation space.
+If a feature's activating inputs cluster around a semantically coherent concept (e.g.\
+``Python function definitions'', ``references to DNA''), it is labelled as that concept.
+
+\begin{paperbox}[title={Towards Monosemanticity (Cunningham et al.\ 2023, Anthropic)}]
+  Applied SAEs to a one-layer transformer. Found thousands of interpretable features
+  including curve detectors, high-frequency features, and multimodal neurons. Validated
+  that SAE features are causally relevant: steering on a feature's direction induces
+  the corresponding behaviour.
+\end{paperbox}
+
+\begin{paperbox}[title={Scaling Monosemanticity (Templeton et al.\ 2024, Anthropic)}]
+  Scaled SAEs to Claude\,3 Sonnet (a large production model) and extracted
+  $\sim$34\,million features. Found high-level abstract concepts including features for
+  the ``Assistant'' token that encode intent and agency. Demonstrated that feature
+  steering on safety-relevant features (e.g.\ ``deception'') produces consistent
+  behavioural changes.
+\end{paperbox}
+
+\textbf{Tooling.}
+\begin{itemize}
+  \item \textbf{SAELens}: open-source library for training, analysing, and evaluating
+    SAEs across model families. Provides standardised training pipelines and
+    interpretability metrics.
+  \item \textbf{Neuronpedia}: web platform for browsing trained SAE features, viewing
+    max-activating dataset examples, and testing feature steering.
+\end{itemize}
 
 \subsection{Circuit-level analysis}
 
-% TODO
+A \textbf{circuit} is a minimal subgraph of model components (attention heads, MLP
+neurons, residual stream paths) that is sufficient to explain a particular model
+behaviour.
+
+\textbf{Methodology.}
+\begin{enumerate}
+  \item Identify a \emph{task} (e.g.\ indirect object identification: ``John told
+    Mary that \underline{\hspace{1em}} liked ice cream'' $\to$ ``she'').
+  \item Use \textbf{activation patching} (see below) to identify which components
+    causally matter for the task.
+  \item Trace the information flow through the residual stream to characterise what
+    each component contributes.
+\end{enumerate}
+
+\textbf{Canonical circuits found in transformers:}
+\begin{itemize}
+  \item \textbf{Induction heads} (Olsson et al.\ 2022): two-layer circuit that copies
+    patterns from earlier context (\texttt{[A][B]\ldots[A]} $\to$ predict \texttt{B}).
+    Mechanistically implement in-context learning.
+  \item \textbf{Indirect Object Identification (IOI)} (Wang et al.\ 2022): a 26-head
+    circuit in GPT-2 medium that correctly identifies indirect objects in sentences like
+    ``When John and Mary went to the store, John gave a book to\ldots''
+\end{itemize}
+
+\textbf{Circuit-Tracer} is an automated tool for discovering circuits without manual
+intervention; it uses gradient-based attribution to identify the most impactful paths
+through the computation graph.
 
 \subsection{Activation patching}
 
-% TODO
+\textbf{Activation patching} (also called \emph{causal tracing}) is an intervention
+technique that identifies which activations causally mediate a model behaviour.
 
+\textbf{Protocol:}
+\begin{enumerate}
+  \item Run the model on a \emph{clean} input (correct behaviour) and a \emph{corrupted}
+    input (incorrect behaviour, e.g.\ name swap). Record all activations.
+  \item Run the corrupted input again, but \emph{patch} the activation at a specific
+    layer and token position by substituting the clean activation.
+  \item Measure how much the model's output recovers toward the clean behaviour.
+    A large recovery means that activation is causally important.
+\end{enumerate}
+
+\begin{paperbox}[title={ROME / MEMIT (Meng et al.\ 2022)}]
+  Used causal tracing on GPT-2 and GPT-J to localise factual associations to specific
+  MLP layers in the middle of the network. Used this insight to design
+  Rank-One Model Editing (ROME), which directly overwrites factual associations
+  in those MLP weight matrices without fine-tuning.
+\end{paperbox}
+
+\textbf{Path patching} extends the technique by patching not just a single activation
+but a specific \emph{path} between two components, enabling more precise circuit
+decomposition.
+
+\begin{warnbox}
+  Activation patching can identify correlation between a component and a behaviour,
+  but determining the full mechanism still requires understanding \emph{what} the
+  component computes, not just \emph{that} it matters. Patching is the localisation
+  step; circuit analysis is the explanation step.
+\end{warnbox}

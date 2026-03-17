@@ -3,23 +3,136 @@
 
 \section{Attention Mechanisms}
 
+Attention allows a model to weight the contribution of different input positions when
+computing a representation. The transformer's self-attention replaced recurrence with
+a fully parallelisable mechanism that can model arbitrary long-range dependencies.
+
 \subsection{Scaled dot-product attention}
 
-% TODO
+Given queries $Q \in \mathbb{R}^{n \times d_k}$, keys $K \in \mathbb{R}^{m \times d_k}$,
+and values $V \in \mathbb{R}^{m \times d_v}$:
+\[
+  \text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right) V
+\]
+
+\textbf{Why scale by $\sqrt{d_k}$?} For large $d_k$, the dot products $q^\top k$ grow
+in magnitude, pushing the softmax into regions of very small gradient (saturation).
+Dividing by $\sqrt{d_k}$ keeps the inputs to softmax in a regime with usable gradients.
+
+\textbf{Complexity.} Naively $O(n^2 d_k)$ time and $O(n^2)$ memory in sequence length $n$
+due to the $n \times n$ attention weight matrix. This quadratic scaling is the primary
+bottleneck for long-context models.
+
+\textbf{Causal masking.} In autoregressive decoders, a lower-triangular mask is applied
+to the attention weights before softmax, preventing each position from attending to
+future positions.
 
 \subsection{Multi-head attention (MHA)}
 
-% TODO
+\textbf{Multi-head attention} (Vaswani et al.\ 2017) runs $h$ independent attention
+operations (``heads'') in parallel, each with its own projection matrices:
+\[
+  \text{MHA}(Q, K, V) = \text{Concat}(\text{head}_1, \ldots, \text{head}_h) W^O
+\]
+\[
+  \text{head}_i = \text{Attention}(Q W_i^Q, K W_i^K, V W_i^V)
+\]
+
+Different heads learn to attend to different aspects of the input (e.g.\ syntactic
+dependencies, co-reference, positional relations). The concatenated output is projected
+back to the model dimension by $W^O$.
+
+\textbf{Parameter count.} For model dimension $d_\text{model}$ and $h$ heads with
+$d_k = d_v = d_\text{model}/h$: each head has $3 \times d_\text{model} \times d_k$
+projection parameters, plus $d_\text{model}^2$ for $W^O$. Total: $4 d_\text{model}^2$.
 
 \subsection{Multi-query \& grouped-query attention (MQA, GQA)}
 
-% TODO
+Standard MHA maintains $h$ separate $K$ and $V$ heads, making the KV cache
+$\propto h \times d_k$ per token --- a dominant memory cost at inference.
+
+\textbf{Multi-Query Attention (MQA)} (Shazeer 2019): all query heads share a single
+$K$ head and a single $V$ head. KV cache shrinks by a factor of $h$. Slight accuracy
+degradation, but significant memory and throughput improvement.
+
+\textbf{Grouped-Query Attention (GQA)} (Ainslie et al.\ 2023): a middle ground.
+Queries are divided into $G$ groups; each group shares one $K$/$V$ head.
+$G=1 \Rightarrow$ MQA; $G=h \Rightarrow$ MHA. GQA with $G=8$ is the standard
+in Llama\,2/3, Gemma, and Mistral --- it retains most MHA quality while substantially
+reducing KV cache size.
+
+\begin{paperbox}[title={Multi-head Latent Attention (MLA, DeepSeek-V2)}]
+  Compresses the KV cache more aggressively by projecting each token's key and value
+  into a shared low-rank latent vector $c_{KV} \in \mathbb{R}^{d_c}$ ($d_c \ll h \cdot d_k$)
+  via a down-projection. At inference, only $c_{KV}$ (plus a small rope-compressed
+  key) is cached. This reduces KV cache to the latent dimension rather than the full
+  KV dimension. \textbf{FlashMLA} provides an efficient GPU kernel for MLA computation.
+\end{paperbox}
+
+\begin{notebox}
+  MQA $\subset$ GQA $\subset$ MHA in terms of parameter richness.
+  MLA is an orthogonal approach: instead of sharing heads, it compresses the stored
+  representation via learned low-rank projections.
+\end{notebox}
 
 \subsection{Sparse \& linear attention variants}
 
-% TODO
+\textbf{Motivation.} Full attention is $O(n^2)$. For $n = 128$K tokens, the attention
+matrix alone requires $\sim$64\,GB in FP32 --- infeasible on a single GPU.
+
+\textbf{Sparse attention} restricts each token to attend to only a fixed subset of
+positions, reducing complexity:
+\begin{itemize}
+  \item \textbf{Local / sliding window:} each token attends to its $w$ nearest
+    neighbours. Captures local dependencies; used in LongFormer and BigBird.
+  \item \textbf{Global tokens:} a few tokens (e.g.\ \texttt{[CLS]}) attend globally;
+    all others attend locally. Provides long-range signal cheaply.
+  \item \textbf{Random:} each token also attends to a few randomly selected positions.
+\end{itemize}
+
+\begin{paperbox}[title={Native Sparse Attention (NSA, DeepSeek, 2025)}]
+  Hardware-aligned sparse attention designed for direct GPU execution. Combines
+  (1) compressed coarse-grained attention over blocks, (2) selective fine-grained
+  attention on important tokens, and (3) sliding-window local attention.
+  Achieves near-full-attention quality with a fraction of the FLOPs, and its
+  structure is optimised for tensor-core execution.
+\end{paperbox}
+
+\textbf{Linear attention} replaces the softmax with a kernel function
+$k(\mathbf{q}, \mathbf{k}) \approx \phi(\mathbf{q})^\top \phi(\mathbf{k})$ so that the
+associative property of matrix multiplication can be exploited to compute the attention
+in $O(n)$ time via cumulative sums. The cost is that softmax's peaked, normalised
+distributions are hard to replicate exactly, leading to accuracy losses on tasks
+requiring sharp attention.
+
+\textbf{Kimi-Linear} is a linear attention architecture from Moonshot AI (Kimi) that
+enables linear-time sequence modelling for long contexts in production settings.
 
 \subsection{Flash\-Attention}
 
-% TODO
+\begin{paperbox}[title={FlashAttention (Dao et al.\ 2022)}]
+  IO-aware exact attention algorithm. Standard attention materialises the full
+  $n \times n$ attention matrix in GPU high-bandwidth memory (HBM), causing $O(n^2)$
+  HBM reads/writes. FlashAttention instead tiles the computation into SRAM-sized blocks,
+  fusing the softmax and the weighted sum into a single kernel pass.
+  \textbf{The mathematical output is identical to standard attention} --- no approximation.
+\end{paperbox}
 
+\textbf{Performance.} FlashAttention reduces HBM accesses from $O(n^2)$ to $O(n^2 / M)$
+where $M$ is SRAM capacity. On A100 GPUs, this translates to 2--4$\times$ wall-clock
+speedup and $10$--$20\times$ memory saving for typical sequence lengths.
+
+\textbf{FlashAttention-2} (Dao 2023): improves parallelism by splitting the outer loop
+over query blocks (enabling more thread-block parallelism) and reducing non-matmul FLOPs
+by $\sim$2$\times$.
+
+\textbf{FlashAttention-3} (Shah et al.\ 2024): H100-specific optimisations including
+warp specialisation, asynchronous TMA (Tensor Memory Accelerator) loads, and FP8
+support. Achieves $>75\%$ FP16 FLOP utilisation on H100.
+
+\begin{intuitionbox}
+  FlashAttention's key insight: the bottleneck in attention is not arithmetic (GPU
+  tensor cores are fast) but \emph{memory bandwidth} (moving the $n^2$ matrix between
+  HBM and compute units). By keeping intermediate results in fast on-chip SRAM,
+  FlashAttention turns an HBM-bound operation into a compute-bound one.
+\end{intuitionbox}

@@ -29,7 +29,68 @@
 
 \subsection{Aider \& CLI coding agents}
 
-% TODO
+CLI-based coding agents run entirely in a terminal, wrapping an LLM with a persistent
+conversation loop, file I/O tools, and shell execution.
+
+\textbf{Aider} is an open-source CLI agent that maintains a \emph{repo map} (built with
+ctags/tree-sitter) to give the model structural context without flooding the context window
+with raw source. It applies model-generated edits via SEARCH/REPLACE blocks or unified-diff
+format, and supports multi-model backends (GPT-4o, Claude, Gemini, etc.).
+
+\textbf{Claude Code} (Anthropic, 2024--) is Anthropic's official CLI agent, built on the
+Claude Agent SDK. Observations from direct inspection of live session JSONL logs:
+
+\begin{itemize}
+  \item \textbf{Session persistence.} Every conversation is stored as a newline-delimited
+    JSON file at \texttt{\textasciitilde/.claude/projects/\{project-slug\}/\{session-uuid\}.jsonl}.
+    The project slug is the working-directory path with \texttt{/} replaced by \texttt{-},
+    so each repository gets its own project namespace.
+
+  \item \textbf{Message graph.} Each JSONL entry carries \texttt{uuid} and \texttt{parentUuid},
+    forming a linked list (or tree when the user branches). A \texttt{promptId} groups every
+    event (user message, assistant chunks, tool results) that belongs to the same conversational
+    turn. The boolean \texttt{isSidechain} marks branch points.
+
+  \item \textbf{Event types.} Three kinds of records appear in the log:
+    \begin{itemize}
+      \item \texttt{queue-operation} (enqueue / dequeue) --- internal concurrency plumbing
+        so messages do not collide when dispatched rapidly.
+      \item \texttt{user} --- human messages \emph{and} tool-call results (see below).
+      \item \texttt{assistant} --- model output, written incrementally as chunks arrive;
+        a single logical response often spans several consecutive lines.
+    \end{itemize}
+
+  \item \textbf{Tool results are injected as \texttt{role: user}.} This is a direct
+    consequence of how the Anthropic Messages API works: tool results are sent back to
+    the model in a \texttt{user} turn, not as assistant output. Each result entry carries
+    a \texttt{sourceToolAssistantUUID} linking it to the assistant message that issued
+    the call, plus a \texttt{toolUseResult} object with \texttt{stdout}, \texttt{stderr},
+    and an \texttt{interrupted} flag.
+
+  \item \textbf{Extended thinking blocks.} When extended thinking is enabled, the
+    assistant content array contains a \texttt{\{type: ``thinking''\}} block alongside
+    the visible \texttt{\{type: ``text''\}} block. Each thinking block carries a
+    cryptographic \texttt{signature} --- Anthropic's mechanism to verify that thinking
+    content has not been tampered with between turns in a long tool-use loop.
+
+  \item \textbf{Prompt-cache telemetry.} Each assistant message records
+    \texttt{cache\_creation\_input\_tokens} (tokens written to the cache this turn) and
+    \texttt{cache\_read\_input\_tokens} (tokens served from cache), broken out by
+    TTL tier (\texttt{ephemeral\_5m} vs.\ \texttt{ephemeral\_1h}). This makes the cache
+    hit rate observable as context grows.
+
+  \item \textbf{Session metadata.} Every record stores \texttt{cwd}, \texttt{gitBranch},
+    \texttt{version} (the Claude Code release string), and \texttt{userType}
+    (\texttt{external} for human users). A human-readable \texttt{slug} field
+    (e.g.\ \texttt{gleaming-spinning-nygaard}) appears from the first tool-call onward,
+    matching the session's VM directory name. These fields enable session resumption and
+    provide an audit trail.
+
+  \item \textbf{Permission model.} Messages carry a \texttt{permissionMode} field
+    (\texttt{default}, \texttt{full}, \texttt{restricted}) that gates which tools the
+    agent may invoke autonomously, aligning with Anthropic's principle of minimal
+    footprint for agentic actions.
+\end{itemize}
 
 \subsection{How AI IDEs use context (repo map, RAG)}
 
@@ -37,9 +98,87 @@
 
 \subsection{Diff application \& conflict resolution}
 
-% TODO
+Coding agents must apply model-generated edits back to the repository. Two dominant
+formats exist and the choice meaningfully affects benchmark performance:
 
-\subsection{Evaluation: SWE-bench, IDE evals}
+\textbf{Whole-file (whole) format:}
+The model rewrites the entire file with the change applied. Simple to parse and apply;
+but wastes tokens and compute rewriting unchanged content. Produces more reliable edits
+for small files; becomes impractical for large codebases.
 
-% TODO
+\textbf{Diff (unified-diff / SEARCH-REPLACE) format:}
+The model emits only the changed lines, either as a unified diff or as a
+SEARCH/REPLACE block. Far more token-efficient; the apply step can fail if the
+surrounding context the model assumed does not match the current file (merge
+conflicts).
+
+\textbf{Observed impact:} On the Aider Polyglot benchmark, the same base model
+scored 8\% in diff format vs 16\% in whole format because the model had not been
+fine-tuned on diff-style output --- it would hallucinate diff syntax. After
+instruction-tuning on diff examples, performance converged and ultimately exceeded
+the whole-format ceiling.
+
+\begin{intuitionbox}[title=The analogy]
+  Whole format = re-drawing the entire picture to add a cloud.
+  Diff format = drawing just the cloud. Diff is smarter; it requires the model to
+  reason precisely about which lines to change and what the surrounding context is.
+\end{intuitionbox}
+
+\textbf{Conflict resolution} arises when the model's assumed file state diverges from
+the actual file (concurrent edits, stale context). Agents handle this by: (1) re-reading
+the file before applying, (2) fuzzy matching the search block with edit distance
+tolerance, or (3) falling back to whole-file replacement.
+
+\subsection{Evaluation: SWE-bench, Aider Polyglot \& coding benchmarks}
+
+\textbf{SWE-bench / SWE-bench Verified:}
+\begin{itemize}
+  \item Tasks are real GitHub issues from popular Python repositories; the agent must
+    produce a patch that passes the associated unit tests.
+  \item SWE-bench Verified filters to issues where human raters confirmed the test suite
+    correctly validates the fix, removing noisy items.
+  \item State-of-the-art agents (Devin, SWE-agent) score in the 40--50\% range as of
+    mid-2024; fully autonomous resolution of hard issues remains challenging.
+  \item Measures end-to-end capability: repo understanding, fault localisation,
+    patch generation, and test passage --- all in one score.
+\end{itemize}
+
+\textbf{Aider Polyglot:}
+\begin{itemize}
+  \item Coding exercises in six languages (Python, JavaScript, TypeScript, Go, Rust,
+    C++); evaluated in diff format and whole format separately.
+  \item Respected as a real-world, language-diverse benchmark; frontier models like
+    GPT-4-era scored around 18\% in diff format at launch.
+  \item Benchmark non-determinism is significant: consecutive runs of the same
+    checkpoint can vary by 2--3 percentage points (see Chapter~45 on statistical
+    significance).
+\end{itemize}
+
+\textbf{Synthetic data for coding fine-tuning:}
+Two prominent methods for generating instruction-tuning data for coding models:
+\begin{itemize}
+  \item \textbf{OSS-Instruct} (from MagicCoder): given a code snippet, prompt a
+    stronger model to generate an instruction-response pair \emph{inspired by} the
+    snippet but not identical to it. Produces diverse, naturally grounded examples.
+  \item \textbf{Evol-Instruct:} iteratively evolve a seed instruction into more
+    complex or diverse variants (``make it harder'', ``add an edge case'', ``translate
+    to a different language''). Each evolved version becomes a new training example.
+    The cloning/dancing-guy analogy: each iteration produces a slightly different
+    version; after many rounds, the dataset is far richer than the seed.
+\end{itemize}
+
+\textbf{The training-data pipeline challenge} (observed empirically):
+\begin{itemize}
+  \item Raw code from GitHub commit messages varies wildly in quality; poor commit
+    messages often indicate low-quality, uncommitted code artifacts.
+  \item Validation harnesses (test runners that score model outputs) can \emph{pass
+    garbage} if misconfigured --- a stricter harness catching more failures is
+    progress, not regression.
+  \item \textbf{Garbage in, garbage out:} training on lower-quality data can make a
+    model worse than its base. Cleaning (whitespace normalisation, deduplication,
+    license filtering, quality scoring) is as important as volume.
+  \item Data sources used in practice: The Stack (60TB permissively-licensed code),
+    GitHub (MIT/Apache-licensed repositories), synthetic generation from frontier
+    models (with contamination checks).
+\end{itemize}
 

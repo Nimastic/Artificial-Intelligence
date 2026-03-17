@@ -5,17 +5,172 @@
 
 \subsection{Evaluation taxonomy}
 
-% TODO
+Evaluations exist on two orthogonal axes: \emph{what} is being measured and \emph{how}
+it is measured.
+
+\textbf{What is being measured:}
+\begin{itemize}
+  \item \textbf{LLM output quality:} fluency, coherence, factual accuracy of a single
+    response. Standard metrics: BLEU, ROUGE, BERTScore, perplexity.
+  \item \textbf{Agent task success:} did the agent complete the goal? Fundamentally
+    different from output quality --- a response can be fluent but wrong; a task can
+    succeed via a suboptimal path. Metrics: task completion rate, step accuracy,
+    tool-call efficiency, latency, cost per run.
+  \item \textbf{Safety and alignment:} does the model/agent refuse correctly, avoid
+    harmful outputs, resist injection, and respect privacy constraints?
+  \item \textbf{Robustness:} does performance hold under paraphrasing, adversarial
+    inputs, or distribution shift?
+  \item \textbf{Efficiency:} latency, token count, cost per query or task.
+\end{itemize}
+
+\textbf{How it is measured:}
+\begin{itemize}
+  \item \textbf{Exact match:} strict string equality. Fast and unambiguous; brittle for
+    open-ended tasks.
+  \item \textbf{Functional correctness:} test-based evaluation --- does the output
+    pass unit tests? Standard for code evals (SWE-bench, Aider Polyglot, HumanEval).
+  \item \textbf{Rubric scoring:} a fixed rubric grades outputs on specific dimensions.
+    Can be applied by human raters or an LLM judge.
+  \item \textbf{LLM-as-judge:} a stronger model rates the output against a rubric.
+    Scalable; inherits the judge model's biases and inconsistencies.
+  \item \textbf{Human rating:} annotators assess quality. Expensive but sets the gold
+    standard for nuanced, open-ended tasks.
+  \item \textbf{End-to-end environment:} agent runs in a sandboxed environment and
+    outcomes are verified programmatically (WebArena, OSWorld, SWE-bench).
+\end{itemize}
+
+\begin{intuitionbox}[title=Key distinction: output quality vs task success]
+  A model can generate a fluent, coherent answer that fails the actual task. A model
+  can succeed at the task via an ugly, verbose path. For agents, always prefer
+  task-success metrics over output-quality proxies.
+\end{intuitionbox}
 
 \subsection{Contamination \& data leakage}
 
-% TODO
+\textbf{Benchmark contamination} occurs when examples from an evaluation benchmark
+appear (exactly or near-exactly) in the model's training data. This inflates measured
+performance beyond the model's true generalisation capability.
+
+\textbf{Why it happens:}
+\begin{itemize}
+  \item Web-scale pretraining datasets inevitably contain benchmark text published
+    online, in papers, or in tutorials.
+  \item Synthetic data pipelines (where a stronger model generates training examples)
+    can inadvertently reproduce benchmark questions when the teacher model has seen them.
+  \item Fine-tuning on large scraped corpora (GitHub, Stack Overflow, coding forums)
+    can pull in code that is identical to benchmark test cases.
+\end{itemize}
+
+\textbf{Why it is hard to catch:}
+\begin{itemize}
+  \item Near-duplicates (paraphrased, variable-renamed) are harder to detect than
+    exact copies and can still give unfair advantage.
+  \item Developers may not check for contamination until after a model ``beats''
+    a benchmark --- at which point the incentive to look is low.
+  \item Some contamination is partial: a model may have seen the problem statement
+    but not the ground-truth answer, giving a weaker but real advantage.
+\end{itemize}
+
+\textbf{Detection methods:}
+\begin{itemize}
+  \item \textbf{N-gram overlap:} check training data for $n$-gram matches with
+    benchmark items. Computationally cheap; misses paraphrases.
+  \item \textbf{Perplexity probing:} the model assigns lower perplexity to text it
+    has memorised. Benchmark items with unusually low perplexity are suspect.
+  \item \textbf{Canary strings:} embed unique strings in private benchmarks; if they
+    appear in training data, contamination is confirmed.
+  \item \textbf{Held-out splits:} maintain a private benchmark partition never
+    published online.
+\end{itemize}
+
+\begin{warnbox}[title=Real-world example: PewDiePie's coding model]
+  After training a coding model and achieving a score that appeared to beat ChatGPT's
+  ChatGPT-4 on Aider Polyglot, the author discovered small amounts of contamination
+  in his training data. He discarded the benchmark result and retrained on clean data
+  --- demonstrating that contamination is easy to miss even in small, manually curated
+  datasets. The final clean score (39.1\%) was ultimately higher, but the contaminated
+  result was invalid regardless of the magnitude of overlap.
+\end{warnbox}
 
 \subsection{Human vs automated evaluation}
 
-% TODO
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+ & \textbf{Automated} & \textbf{Human} \\
+\midrule
+Speed & Fast (seconds--minutes) & Slow (hours--days) \\
+Cost & Cheap & Expensive \\
+Scale & Unlimited & Limited by annotator pool \\
+Nuance & Low--medium & High \\
+Consistency & High (deterministic) & Variable (inter-rater variance) \\
+Coverage & Easy to run at every PR & Typically periodic \\
+Best for & Regression testing, CI & Gold standard, edge cases \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Automated eval strategies:}
+\begin{itemize}
+  \item \textbf{Unit-test / functional:} execute generated code and check test passage.
+    High fidelity for coding tasks; requires a sandboxed execution environment.
+  \item \textbf{Regex / exact match:} good for factual Q\&A with known answers.
+  \item \textbf{LLM-as-judge:} a stronger model scores outputs on a rubric.
+    Practical at scale; biased toward its own output style and sensitive to prompt
+    phrasing. Should be validated against human judgements.
+  \item \textbf{Reference-free metrics:} BERTScore, METEOR measure semantic
+    similarity to a reference; useful but imperfect for open-ended generation.
+\end{itemize}
+
+\textbf{Human eval strategies:}
+\begin{itemize}
+  \item \textbf{Pairwise comparison:} raters choose which of two outputs is better.
+    Easier and more reliable than absolute ratings; enables Elo-style leaderboards
+    (e.g.\ LMSYS Chatbot Arena).
+  \item \textbf{Rubric-anchored rating:} raters score on a scale (1--5) against
+    explicit criteria. Inter-rater agreement must be measured (Cohen's $\kappa$).
+  \item \textbf{Task completion:} rater attempts to complete a task using the model's
+    output. Produces a binary or partial-credit score.
+\end{itemize}
+
+\textbf{Regression testing workflow:}
+When a model, prompt, or retrieval config changes, run the full automated eval suite
+before and after and compare distributions. Flag regressions in specific categories
+(coding, reasoning, safety) before deploying. Human review is reserved for cases
+where automated metrics disagree or a novel failure mode is suspected.
 
 \subsection{Statistical significance in evals}
 
-% TODO
+\textbf{Benchmark scores are noisy.} LLMs are non-deterministic at temperature $> 0$,
+many benchmarks use sampling to select a subset of problems, and small dataset sizes
+amplify variance. A single reported number is rarely sufficient.
+
+\textbf{Real-world variance observed:} On the Aider Polyglot coding benchmark, scores
+for the same model checkpoint varied across runs --- 14\%, 15\%, and 16\% from
+consecutive runs, and top-line frontier model trackers show week-to-week swings of
+5--10 percentage points on identical benchmark versions. This is not model degradation;
+it is inherent stochasticity.
+
+\textbf{Best practices:}
+\begin{itemize}
+  \item \textbf{Report distributions, not points.} Run $n \geq 5$ trials; report mean
+    and standard deviation. ``$25 \pm 2\%$'' is more honest than ``25\%''.
+  \item \textbf{Statistical tests.} For comparing two model versions, use a paired
+    $t$-test or bootstrap confidence interval on per-example scores. A 1-point
+    improvement is rarely significant on a 100-item benchmark.
+  \item \textbf{Enough items.} A 50-item benchmark has very wide confidence intervals.
+    $n \geq 500$ items is a reasonable floor for reliable comparisons.
+  \item \textbf{Fixed temperature / seed.} For reproducibility, fix temperature to 0
+    (greedy decoding) or fix the random seed. Report which was used.
+  \item \textbf{Never cherry-pick runs.} Running the benchmark 10 times and reporting
+    only the best result (``god run'') is a form of data dredging --- the expected
+    maximum of 10 samples is substantially higher than the true mean.
+\end{itemize}
+
+\begin{warnbox}[title=The ``god run'' anti-pattern]
+  Running a benchmark repeatedly and reporting the highest score is statistically
+  invalid. If the true mean performance is 25\% and you run 10 trials, the expected
+  maximum will be several points higher simply by chance. Always report mean $\pm$ std
+  across a fixed number of trials decided in advance.
+\end{warnbox}
 
