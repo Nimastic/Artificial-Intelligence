@@ -682,6 +682,12 @@ INPUT ./chapters/53_agentic_platforms.tex
 INPUT ./chapters/53_agentic_platforms.tex
 INPUT ./chapters/53_agentic_platforms.tex
 INPUT chapters/53_agentic_platforms.tex
+INPUT ./chapters/54_uni_modules.tex
+INPUT ./chapters/54_uni_modules.tex
+INPUT ./chapters/54_uni_modules.tex
+INPUT ./chapters/54_uni_modules.tex
+INPUT chapters/54_uni_modules.tex
+INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/tfm/public/lm/ec-lmri10.tfm
 INPUT main.aux
 INPUT ./main.out
 INPUT ./main.out
@@ -689,4 +695,5 @@ INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/type1/public/
 INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/type1/public/lm/lmbx12.pfb
 INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/type1/public/lm/lmr10.pfb
 INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/type1/public/lm/lmr12.pfb
+INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/type1/public/lm/lmri10.pfb
 INPUT /opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/type1/public/lm/lmsy10.pfb

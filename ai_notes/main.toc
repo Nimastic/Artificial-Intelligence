@@ -287,3 +287,8 @@
 \contentsline {subsection}{\numberline {53.5}Desktop agent architectures}{9}{subsection.53.5}%
 \contentsline {subsection}{\numberline {53.6}Security \& sandboxing for autonomous agents}{9}{subsection.53.6}%
 \contentsline {subsection}{\numberline {53.7}Meta's agent research (LLaMA, CICERO)}{9}{subsection.53.7}%
+\contentsline {section}{\numberline {54}University AI Modules}{9}{section.54}%
+\contentsline {subsection}{\numberline {54.1}CS2109S — AI and Machine Learning}{9}{subsection.54.1}%
+\contentsline {subsection}{\numberline {54.2}CS3263 — Foundations of AI}{10}{subsection.54.2}%
+\contentsline {subsection}{\numberline {54.3}CS4246 — AI Planning and Decision Making}{10}{subsection.54.3}%
+\contentsline {subsection}{\numberline {54.4}MA4275 — Mathematics for Reinforcement Learning}{10}{subsection.54.4}%
