@@ -1,0 +1,289 @@
+\contentsline {section}{\numberline {1}Math \& Probability Refresher}{9}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Linear algebra essentials}{9}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Probability \& information theory}{9}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Calculus \& gradients}{9}{subsection.1.3}%
+\contentsline {subsection}{\numberline {1.4}Statistics for ML}{9}{subsection.1.4}%
+\contentsline {section}{\numberline {2}Classical ML \& Optimization}{9}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Supervised learning fundamentals}{9}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Gradient descent variants}{9}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Convex vs non-convex optimization}{9}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}SVMs, trees, ensembles}{9}{subsection.2.4}%
+\contentsline {section}{\numberline {3}Neural Networks from Scratch}{9}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Perceptrons \& MLPs}{9}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Activation functions}{9}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Initialization strategies}{9}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Universal approximation theorem}{9}{subsection.3.4}%
+\contentsline {section}{\numberline {4}Backpropagation \& Autodiff}{9}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Computational graphs}{9}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Forward \& reverse mode autodiff}{9}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Vanishing \& exploding gradients}{9}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}PyTorch autograd internals}{9}{subsection.4.4}%
+\contentsline {section}{\numberline {5}Regularization, Loss Functions \& Training Tricks}{9}{section.5}%
+\contentsline {subsection}{\numberline {5.1}L1, L2, dropout, batch norm}{9}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Loss function zoo}{9}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Learning rate schedules}{9}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}Mixed precision training}{9}{subsection.5.4}%
+\contentsline {section}{\numberline {6}Transformer Architecture Deep Dive}{9}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Encoder-decoder vs decoder-only}{9}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Multi-head self-attention}{9}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Feed-forward sublayer}{9}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Layer norm \& residual stream}{9}{subsection.6.4}%
+\contentsline {section}{\numberline {7}Attention Mechanisms}{9}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Scaled dot-product attention}{9}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Multi-head attention (MHA)}{9}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Multi-query \& grouped-query attention (MQA, GQA)}{9}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}Sparse \& linear attention variants}{9}{subsection.7.4}%
+\contentsline {subsection}{\numberline {7.5}Flash\-Attention}{9}{subsection.7.5}%
+\contentsline {section}{\numberline {8}Positional Encodings}{9}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Sinusoidal encodings (original)}{9}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Learned absolute positions}{9}{subsection.8.2}%
+\contentsline {subsection}{\numberline {8.3}Relative position encodings}{9}{subsection.8.3}%
+\contentsline {subsection}{\numberline {8.4}RoPE (rotary position embedding)}{9}{subsection.8.4}%
+\contentsline {subsection}{\numberline {8.5}ALiBi}{9}{subsection.8.5}%
+\contentsline {section}{\numberline {9}Tokenization \& Vocabulary}{9}{section.9}%
+\contentsline {subsection}{\numberline {9.1}BPE, WordPiece, Unigram}{9}{subsection.9.1}%
+\contentsline {subsection}{\numberline {9.2}SentencePiece \& tiktoken}{9}{subsection.9.2}%
+\contentsline {subsection}{\numberline {9.3}Vocabulary size trade-offs}{9}{subsection.9.3}%
+\contentsline {subsection}{\numberline {9.4}Multilingual tokenization}{9}{subsection.9.4}%
+\contentsline {section}{\numberline {10}Scaling Laws \& Emergent Capabilities}{9}{section.10}%
+\contentsline {subsection}{\numberline {10.1}Chinchilla scaling laws}{9}{subsection.10.1}%
+\contentsline {subsection}{\numberline {10.2}Compute-optimal training}{9}{subsection.10.2}%
+\contentsline {subsection}{\numberline {10.3}Emergent abilities \& phase transitions}{9}{subsection.10.3}%
+\contentsline {subsection}{\numberline {10.4}Scaling inference compute}{9}{subsection.10.4}%
+\contentsline {section}{\numberline {11}Pretraining Pipelines \& Data Curation}{9}{section.11}%
+\contentsline {subsection}{\numberline {11.1}Web-scale data collection}{9}{subsection.11.1}%
+\contentsline {subsection}{\numberline {11.2}Deduplication \& quality filtering}{9}{subsection.11.2}%
+\contentsline {subsection}{\numberline {11.3}Data mixing strategies}{9}{subsection.11.3}%
+\contentsline {subsection}{\numberline {11.4}Pretraining objectives (CLM, MLM, etc.)}{9}{subsection.11.4}%
+\contentsline {section}{\numberline {12}Fine-tuning: SFT, LoRA, QLoRA}{9}{section.12}%
+\contentsline {subsection}{\numberline {12.1}Supervised fine-tuning (SFT)}{9}{subsection.12.1}%
+\contentsline {subsection}{\numberline {12.2}Parameter-efficient fine-tuning (PEFT)}{9}{subsection.12.2}%
+\contentsline {subsection}{\numberline {12.3}LoRA \& AdaLoRA}{9}{subsection.12.3}%
+\contentsline {subsection}{\numberline {12.4}QLoRA \& quantized fine-tuning}{9}{subsection.12.4}%
+\contentsline {section}{\numberline {13}RLHF, DPO \& Reward Modelling}{9}{section.13}%
+\contentsline {subsection}{\numberline {13.1}Human preference collection}{9}{subsection.13.1}%
+\contentsline {subsection}{\numberline {13.2}Reward model training}{9}{subsection.13.2}%
+\contentsline {subsection}{\numberline {13.3}PPO for language models}{9}{subsection.13.3}%
+\contentsline {subsection}{\numberline {13.4}Direct preference optimization (DPO)}{9}{subsection.13.4}%
+\contentsline {subsection}{\numberline {13.5}GRPO \& alternatives}{9}{subsection.13.5}%
+\contentsline {section}{\numberline {14}Mixture of Experts (MoE)}{9}{section.14}%
+\contentsline {subsection}{\numberline {14.1}Sparse MoE fundamentals}{9}{subsection.14.1}%
+\contentsline {subsection}{\numberline {14.2}Routing mechanisms}{9}{subsection.14.2}%
+\contentsline {subsection}{\numberline {14.3}Load balancing losses}{9}{subsection.14.3}%
+\contentsline {subsection}{\numberline {14.4}MoE in practice (Mixtral, GPT-4 rumours)}{9}{subsection.14.4}%
+\contentsline {section}{\numberline {15}Inference \& Decoding Strategies}{9}{section.15}%
+\contentsline {subsection}{\numberline {15.1}Greedy, beam search, sampling}{9}{subsection.15.1}%
+\contentsline {subsection}{\numberline {15.2}Temperature, top-k, top-p}{9}{subsection.15.2}%
+\contentsline {subsection}{\numberline {15.3}KV cache mechanics}{9}{subsection.15.3}%
+\contentsline {subsection}{\numberline {15.4}Speculative decoding}{9}{subsection.15.4}%
+\contentsline {subsection}{\numberline {15.5}Continuous batching}{9}{subsection.15.5}%
+\contentsline {section}{\numberline {16}Quantization \& Model Compression}{9}{section.16}%
+\contentsline {subsection}{\numberline {16.1}Post-training quantization (PTQ)}{9}{subsection.16.1}%
+\contentsline {subsection}{\numberline {16.2}Quantization-aware training (QAT)}{9}{subsection.16.2}%
+\contentsline {subsection}{\numberline {16.3}GPTQ, AWQ, GGUF formats}{9}{subsection.16.3}%
+\contentsline {subsection}{\numberline {16.4}Pruning \& distillation}{9}{subsection.16.4}%
+\contentsline {section}{\numberline {17}Prompt Engineering \& In-context Learning}{9}{section.17}%
+\contentsline {subsection}{\numberline {17.1}Zero-shot \& few-shot prompting}{9}{subsection.17.1}%
+\contentsline {subsection}{\numberline {17.2}Chain-of-thought (CoT)}{9}{subsection.17.2}%
+\contentsline {subsection}{\numberline {17.3}Structured output prompting}{9}{subsection.17.3}%
+\contentsline {subsection}{\numberline {17.4}System prompts \& jailbreaks}{9}{subsection.17.4}%
+\contentsline {section}{\numberline {18}RAG \& Long-context Retrieval}{9}{section.18}%
+\contentsline {subsection}{\numberline {18.1}Naive RAG pipeline}{9}{subsection.18.1}%
+\contentsline {subsection}{\numberline {18.2}Embedding models \& vector DBs}{9}{subsection.18.2}%
+\contentsline {subsection}{\numberline {18.3}Chunking strategies}{9}{subsection.18.3}%
+\contentsline {subsection}{\numberline {18.4}Reranking \& advanced RAG}{9}{subsection.18.4}%
+\contentsline {subsection}{\numberline {18.5}Long-context vs retrieval trade-offs}{9}{subsection.18.5}%
+\contentsline {section}{\numberline {19}AI Agent Fundamentals \& Architectures}{9}{section.19}%
+\contentsline {subsection}{\numberline {19.1}Agent loop: perceive, plan, act}{9}{subsection.19.1}%
+\contentsline {subsection}{\numberline {19.2}ReAct framework}{9}{subsection.19.2}%
+\contentsline {subsection}{\numberline {19.3}Reflexion \& self-critique}{9}{subsection.19.3}%
+\contentsline {subsection}{\numberline {19.4}Agent scaffolding patterns}{9}{subsection.19.4}%
+\contentsline {section}{\numberline {20}Tool Use, Function Calling \& MCP}{9}{section.20}%
+\contentsline {subsection}{\numberline {20.1}Function calling APIs}{9}{subsection.20.1}%
+\contentsline {subsection}{\numberline {20.2}Model Context Protocol (MCP)}{9}{subsection.20.2}%
+\contentsline {subsection}{\numberline {20.3}Tool schema design}{9}{subsection.20.3}%
+\contentsline {subsection}{\numberline {20.4}Error handling in tool loops}{9}{subsection.20.4}%
+\contentsline {section}{\numberline {21}Multi-agent Systems \& Orchestration}{9}{section.21}%
+\contentsline {subsection}{\numberline {21.1}Orchestrator-subagent patterns}{9}{subsection.21.1}%
+\contentsline {subsection}{\numberline {21.2}AutoGen, CrewAI, LangGraph}{9}{subsection.21.2}%
+\contentsline {subsection}{\numberline {21.3}Inter-agent communication}{9}{subsection.21.3}%
+\contentsline {subsection}{\numberline {21.4}Swarm intelligence analogies}{9}{subsection.21.4}%
+\contentsline {section}{\numberline {22}Agent Memory: Episodic, Semantic, Working}{9}{section.22}%
+\contentsline {subsection}{\numberline {22.1}In-context (working) memory}{9}{subsection.22.1}%
+\contentsline {subsection}{\numberline {22.2}External episodic memory}{9}{subsection.22.2}%
+\contentsline {subsection}{\numberline {22.3}Semantic memory via vector DBs}{9}{subsection.22.3}%
+\contentsline {subsection}{\numberline {22.4}Memory consolidation strategies}{9}{subsection.22.4}%
+\contentsline {section}{\numberline {23}Planning: MCTS, CoT, o1-style Reasoning}{9}{section.23}%
+\contentsline {subsection}{\numberline {23.1}Classical planning (STRIPS, PDDL)}{9}{subsection.23.1}%
+\contentsline {subsection}{\numberline {23.2}Monte Carlo Tree Search (MCTS)}{9}{subsection.23.2}%
+\contentsline {subsection}{\numberline {23.3}Chain-of-thought \& scratchpads}{9}{subsection.23.3}%
+\contentsline {subsection}{\numberline {23.4}o1 / o3 test-time compute scaling}{9}{subsection.23.4}%
+\contentsline {section}{\numberline {24}World Model Theory}{9}{section.24}%
+\contentsline {subsection}{\numberline {24.1}LeCun's JEPA architecture}{9}{subsection.24.1}%
+\contentsline {subsection}{\numberline {24.2}Dreamer (RSSM)}{9}{subsection.24.2}%
+\contentsline {subsection}{\numberline {24.3}World models in RL}{9}{subsection.24.3}%
+\contentsline {subsection}{\numberline {24.4}Predictive coding theories}{9}{subsection.24.4}%
+\contentsline {section}{\numberline {25}Video \& Predictive Models}{9}{section.25}%
+\contentsline {subsection}{\numberline {25.1}Sora \& video diffusion}{9}{subsection.25.1}%
+\contentsline {subsection}{\numberline {25.2}Genie \& interactive world models}{9}{subsection.25.2}%
+\contentsline {subsection}{\numberline {25.3}Temporal consistency challenges}{9}{subsection.25.3}%
+\contentsline {subsection}{\numberline {25.4}Next-frame prediction as pretraining}{9}{subsection.25.4}%
+\contentsline {section}{\numberline {26}Embodied AI \& Simulation}{9}{section.26}%
+\contentsline {subsection}{\numberline {26.1}Sim-to-real transfer}{9}{subsection.26.1}%
+\contentsline {subsection}{\numberline {26.2}RT-2, PaLM-E, embodied LLMs}{9}{subsection.26.2}%
+\contentsline {subsection}{\numberline {26.3}Simulation environments (Isaac, MuJoCo)}{9}{subsection.26.3}%
+\contentsline {subsection}{\numberline {26.4}Manipulation \& locomotion tasks}{9}{subsection.26.4}%
+\contentsline {section}{\numberline {27}Vision-Language Models}{9}{section.27}%
+\contentsline {subsection}{\numberline {27.1}CLIP \& contrastive pretraining}{9}{subsection.27.1}%
+\contentsline {subsection}{\numberline {27.2}LLaVA, Flamingo, PaLI}{9}{subsection.27.2}%
+\contentsline {subsection}{\numberline {27.3}Vision tokens \& patch embeddings}{9}{subsection.27.3}%
+\contentsline {subsection}{\numberline {27.4}Grounding \& spatial reasoning}{9}{subsection.27.4}%
+\contentsline {section}{\numberline {28}Diffusion Models \& Generative Vision}{9}{section.28}%
+\contentsline {subsection}{\numberline {28.1}DDPM \& DDIM}{9}{subsection.28.1}%
+\contentsline {subsection}{\numberline {28.2}Score matching \& SDE perspective}{9}{subsection.28.2}%
+\contentsline {subsection}{\numberline {28.3}Stable Diffusion architecture}{9}{subsection.28.3}%
+\contentsline {subsection}{\numberline {28.4}ControlNet, LoRA for images}{9}{subsection.28.4}%
+\contentsline {subsection}{\numberline {28.5}Flow matching}{9}{subsection.28.5}%
+\contentsline {section}{\numberline {29}Audio, Speech \& Multimodal Fusion}{9}{section.29}%
+\contentsline {subsection}{\numberline {29.1}Whisper \& speech recognition}{9}{subsection.29.1}%
+\contentsline {subsection}{\numberline {29.2}Audio tokenization}{9}{subsection.29.2}%
+\contentsline {subsection}{\numberline {29.3}TTS \& voice cloning}{9}{subsection.29.3}%
+\contentsline {subsection}{\numberline {29.4}Multimodal fusion strategies}{9}{subsection.29.4}%
+\contentsline {section}{\numberline {30}GPU Architecture}{9}{section.30}%
+\contentsline {subsection}{\numberline {30.1}SM, warp, thread hierarchy}{9}{subsection.30.1}%
+\contentsline {subsection}{\numberline {30.2}Tensor cores \& TF32/BF16}{9}{subsection.30.2}%
+\contentsline {subsection}{\numberline {30.3}Memory: HBM, L2, SRAM}{9}{subsection.30.3}%
+\contentsline {subsection}{\numberline {30.4}CUDA programming model}{9}{subsection.30.4}%
+\contentsline {subsection}{\numberline {30.5}NVLink \& GPU interconnects}{9}{subsection.30.5}%
+\contentsline {section}{\numberline {31}TPUs, NPUs \& Custom ASICs}{9}{section.31}%
+\contentsline {subsection}{\numberline {31.1}Google TPU architecture}{9}{subsection.31.1}%
+\contentsline {subsection}{\numberline {31.2}Systolic arrays}{9}{subsection.31.2}%
+\contentsline {subsection}{\numberline {31.3}Apple Neural Engine}{9}{subsection.31.3}%
+\contentsline {subsection}{\numberline {31.4}Groq LPU \& Cerebras WSE}{9}{subsection.31.4}%
+\contentsline {subsection}{\numberline {31.5}Custom ASIC design trade-offs}{9}{subsection.31.5}%
+\contentsline {section}{\numberline {32}Memory Hierarchy \& Bandwidth Bottlenecks}{9}{section.32}%
+\contentsline {subsection}{\numberline {32.1}Roofline model}{9}{subsection.32.1}%
+\contentsline {subsection}{\numberline {32.2}Arithmetic intensity}{9}{subsection.32.2}%
+\contentsline {subsection}{\numberline {32.3}Memory-bound vs compute-bound ops}{9}{subsection.32.3}%
+\contentsline {subsection}{\numberline {32.4}HBM bandwidth \& capacity limits}{9}{subsection.32.4}%
+\contentsline {section}{\numberline {33}Distributed Training}{9}{section.33}%
+\contentsline {subsection}{\numberline {33.1}Data parallelism (DDP)}{9}{subsection.33.1}%
+\contentsline {subsection}{\numberline {33.2}Tensor parallelism}{9}{subsection.33.2}%
+\contentsline {subsection}{\numberline {33.3}Pipeline parallelism}{9}{subsection.33.3}%
+\contentsline {subsection}{\numberline {33.4}FSDP \& ZeRO optimizer}{9}{subsection.33.4}%
+\contentsline {subsection}{\numberline {33.5}3D parallelism}{9}{subsection.33.5}%
+\contentsline {section}{\numberline {34}Inference Optimization on Hardware}{9}{section.34}%
+\contentsline {subsection}{\numberline {34.1}FlashAttention 1, 2, 3}{9}{subsection.34.1}%
+\contentsline {subsection}{\numberline {34.2}Paged KV cache (vLLM)}{9}{subsection.34.2}%
+\contentsline {subsection}{\numberline {34.3}Continuous batching engines}{9}{subsection.34.3}%
+\contentsline {subsection}{\numberline {34.4}TensorRT \& compilation}{9}{subsection.34.4}%
+\contentsline {section}{\numberline {35}Running LLMs On-device}{9}{section.35}%
+\contentsline {subsection}{\numberline {35.1}llama.cpp \& GGUF}{9}{subsection.35.1}%
+\contentsline {subsection}{\numberline {35.2}Ollama \& LM Studio}{9}{subsection.35.2}%
+\contentsline {subsection}{\numberline {35.3}MLX (Apple Silicon)}{9}{subsection.35.3}%
+\contentsline {subsection}{\numberline {35.4}Quantization for edge}{9}{subsection.35.4}%
+\contentsline {subsection}{\numberline {35.5}Privacy \& latency trade-offs}{9}{subsection.35.5}%
+\contentsline {section}{\numberline {36}OpenClaw \& Agent OS Integration}{9}{section.36}%
+\contentsline {subsection}{\numberline {36.1}OpenClaw architecture overview}{9}{subsection.36.1}%
+\contentsline {subsection}{\numberline {36.2}OS-level agent primitives}{9}{subsection.36.2}%
+\contentsline {subsection}{\numberline {36.3}Filesystem \& process access}{9}{subsection.36.3}%
+\contentsline {subsection}{\numberline {36.4}Security sandboxing}{9}{subsection.36.4}%
+\contentsline {subsection}{\numberline {36.5}Desktop automation patterns}{9}{subsection.36.5}%
+\contentsline {section}{\numberline {37}Embedded AI \& Microcontroller Inference}{9}{section.37}%
+\contentsline {subsection}{\numberline {37.1}TensorFlow Lite \& TFLite Micro}{9}{subsection.37.1}%
+\contentsline {subsection}{\numberline {37.2}ONNX Runtime on ARM}{9}{subsection.37.2}%
+\contentsline {subsection}{\numberline {37.3}Keyword spotting pipelines}{9}{subsection.37.3}%
+\contentsline {subsection}{\numberline {37.4}Power \& memory constraints}{9}{subsection.37.4}%
+\contentsline {section}{\numberline {38}Edge Deployment}{9}{section.38}%
+\contentsline {subsection}{\numberline {38.1}Model pruning for edge}{9}{subsection.38.1}%
+\contentsline {subsection}{\numberline {38.2}Post-training quantization (INT4, INT8)}{9}{subsection.38.2}%
+\contentsline {subsection}{\numberline {38.3}ONNX export \& optimization}{9}{subsection.38.3}%
+\contentsline {subsection}{\numberline {38.4}Neural Architecture Search (NAS)}{9}{subsection.38.4}%
+\contentsline {section}{\numberline {39}CUDA Kernels for ML}{9}{section.39}%
+\contentsline {subsection}{\numberline {39.1}Matrix multiplication (GEMM)}{9}{subsection.39.1}%
+\contentsline {subsection}{\numberline {39.2}Softmax \& layer norm kernels}{9}{subsection.39.2}%
+\contentsline {subsection}{\numberline {39.3}Fused attention kernel}{9}{subsection.39.3}%
+\contentsline {subsection}{\numberline {39.4}Shared memory tiling}{9}{subsection.39.4}%
+\contentsline {subsection}{\numberline {39.5}Profiling with Nsight}{9}{subsection.39.5}%
+\contentsline {section}{\numberline {40}Triton \& Custom Op Authoring}{9}{section.40}%
+\contentsline {subsection}{\numberline {40.1}Triton language overview}{9}{subsection.40.1}%
+\contentsline {subsection}{\numberline {40.2}Writing a fused kernel in Triton}{9}{subsection.40.2}%
+\contentsline {subsection}{\numberline {40.3}Triton vs CUDA trade-offs}{9}{subsection.40.3}%
+\contentsline {subsection}{\numberline {40.4}Integration with PyTorch}{9}{subsection.40.4}%
+\contentsline {section}{\numberline {41}Profiling \& Optimization Workflows}{9}{section.41}%
+\contentsline {subsection}{\numberline {41.1}PyTorch Profiler \& trace viewer}{9}{subsection.41.1}%
+\contentsline {subsection}{\numberline {41.2}Nsight Systems \& Compute}{9}{subsection.41.2}%
+\contentsline {subsection}{\numberline {41.3}Bottleneck identification workflow}{9}{subsection.41.3}%
+\contentsline {subsection}{\numberline {41.4}Operator fusion strategies}{9}{subsection.41.4}%
+\contentsline {section}{\numberline {42}AI Safety Landscape \& Threat Models}{9}{section.42}%
+\contentsline {subsection}{\numberline {42.1}Alignment problem overview}{9}{subsection.42.1}%
+\contentsline {subsection}{\numberline {42.2}Reward hacking \& Goodhart's law}{9}{subsection.42.2}%
+\contentsline {subsection}{\numberline {42.3}Deceptive alignment}{9}{subsection.42.3}%
+\contentsline {subsection}{\numberline {42.4}Containment \& control}{9}{subsection.42.4}%
+\contentsline {section}{\numberline {43}Constitutional AI \& RLHF Safety}{9}{section.43}%
+\contentsline {subsection}{\numberline {43.1}Constitutional AI (Anthropic)}{9}{subsection.43.1}%
+\contentsline {subsection}{\numberline {43.2}RLHF safety properties}{9}{subsection.43.2}%
+\contentsline {subsection}{\numberline {43.3}Red-teaming methodologies}{9}{subsection.43.3}%
+\contentsline {subsection}{\numberline {43.4}Refusal \& harmlessness trade-offs}{9}{subsection.43.4}%
+\contentsline {section}{\numberline {44}Interpretability \& Mechanistic Analysis}{9}{section.44}%
+\contentsline {subsection}{\numberline {44.1}Probing classifiers}{9}{subsection.44.1}%
+\contentsline {subsection}{\numberline {44.2}Superposition hypothesis}{9}{subsection.44.2}%
+\contentsline {subsection}{\numberline {44.3}Sparse autoencoders (SAE)}{9}{subsection.44.3}%
+\contentsline {subsection}{\numberline {44.4}Circuit-level analysis}{9}{subsection.44.4}%
+\contentsline {subsection}{\numberline {44.5}Activation patching}{9}{subsection.44.5}%
+\contentsline {section}{\numberline {45}Evaluation Methodology \& Benchmark Design}{9}{section.45}%
+\contentsline {subsection}{\numberline {45.1}Evaluation taxonomy}{9}{subsection.45.1}%
+\contentsline {subsection}{\numberline {45.2}Contamination \& data leakage}{9}{subsection.45.2}%
+\contentsline {subsection}{\numberline {45.3}Human vs automated evaluation}{9}{subsection.45.3}%
+\contentsline {subsection}{\numberline {45.4}Statistical significance in evals}{9}{subsection.45.4}%
+\contentsline {section}{\numberline {46}Standard Benchmarks}{9}{section.46}%
+\contentsline {subsection}{\numberline {46.1}MMLU, HellaSwag, ARC}{9}{subsection.46.1}%
+\contentsline {subsection}{\numberline {46.2}HumanEval, SWE-bench}{9}{subsection.46.2}%
+\contentsline {subsection}{\numberline {46.3}MT-Bench \& Chatbot Arena}{9}{subsection.46.3}%
+\contentsline {subsection}{\numberline {46.4}MATH, GSM8K}{9}{subsection.46.4}%
+\contentsline {subsection}{\numberline {46.5}GPQA \& frontier benchmarks}{9}{subsection.46.5}%
+\contentsline {section}{\numberline {47}Evals for Agents \& Agentic Tasks}{9}{section.47}%
+\contentsline {subsection}{\numberline {47.1}WebArena, OSWorld}{9}{subsection.47.1}%
+\contentsline {subsection}{\numberline {47.2}SWE-bench Verified}{9}{subsection.47.2}%
+\contentsline {subsection}{\numberline {47.3}Tool-use evals}{9}{subsection.47.3}%
+\contentsline {subsection}{\numberline {47.4}Long-horizon task evaluation}{9}{subsection.47.4}%
+\contentsline {subsection}{\numberline {47.5}Safety evals for agents}{9}{subsection.47.5}%
+\contentsline {section}{\numberline {48}State Space Models: Mamba \& RWKV}{9}{section.48}%
+\contentsline {subsection}{\numberline {48.1}S4 \& structured state spaces}{9}{subsection.48.1}%
+\contentsline {subsection}{\numberline {48.2}Mamba \& selective SSMs}{9}{subsection.48.2}%
+\contentsline {subsection}{\numberline {48.3}RWKV: RNN-transformer hybrid}{9}{subsection.48.3}%
+\contentsline {subsection}{\numberline {48.4}SSM vs attention trade-offs}{9}{subsection.48.4}%
+\contentsline {section}{\numberline {49}Test-time Compute \& Reasoning Models}{9}{section.49}%
+\contentsline {subsection}{\numberline {49.1}Scaling inference compute}{9}{subsection.49.1}%
+\contentsline {subsection}{\numberline {49.2}OpenAI o1 / o3 architecture (known)}{9}{subsection.49.2}%
+\contentsline {subsection}{\numberline {49.3}Process reward models (PRMs)}{9}{subsection.49.3}%
+\contentsline {subsection}{\numberline {49.4}Best-of-N \& self-consistency}{9}{subsection.49.4}%
+\contentsline {subsection}{\numberline {49.5}Thinking tokens \& scratchpads}{9}{subsection.49.5}%
+\contentsline {section}{\numberline {50}Neurosymbolic AI \& Program Synthesis}{9}{section.50}%
+\contentsline {subsection}{\numberline {50.1}Neural-symbolic integration}{9}{subsection.50.1}%
+\contentsline {subsection}{\numberline {50.2}Program induction}{9}{subsection.50.2}%
+\contentsline {subsection}{\numberline {50.3}AlphaCode \& code generation}{9}{subsection.50.3}%
+\contentsline {subsection}{\numberline {50.4}Formal verification + LLMs}{9}{subsection.50.4}%
+\contentsline {section}{\numberline {51}Research Reading Log \& Paper Notes}{9}{section.51}%
+\contentsline {subsection}{\numberline {51.1}How to use this chapter}{9}{subsection.51.1}%
+\contentsline {subsection}{\numberline {51.2}Paper template}{9}{subsection.51.2}%
+\contentsline {subsection}{\numberline {51.3}Reading list}{9}{subsection.51.3}%
+\contentsline {section}{\numberline {52}AI Coding Agents \& IDEs}{9}{section.52}%
+\contentsline {subsection}{\numberline {52.1}Landscape overview}{9}{subsection.52.1}%
+\contentsline {subsection}{\numberline {52.2}Cursor: architecture \& edit model}{9}{subsection.52.2}%
+\contentsline {subsection}{\numberline {52.3}GitHub Copilot \& Codex}{9}{subsection.52.3}%
+\contentsline {subsection}{\numberline {52.4}Windsurf (Codeium)}{9}{subsection.52.4}%
+\contentsline {subsection}{\numberline {52.5}Antigravity}{9}{subsection.52.5}%
+\contentsline {subsection}{\numberline {52.6}Devin \& SWE-agent}{9}{subsection.52.6}%
+\contentsline {subsection}{\numberline {52.7}Aider \& CLI coding agents}{9}{subsection.52.7}%
+\contentsline {subsection}{\numberline {52.8}How AI IDEs use context (repo map, RAG)}{9}{subsection.52.8}%
+\contentsline {subsection}{\numberline {52.9}Diff application \& conflict resolution}{9}{subsection.52.9}%
+\contentsline {subsection}{\numberline {52.10}Evaluation: SWE-bench, IDE evals}{9}{subsection.52.10}%
+\contentsline {section}{\numberline {53}Agentic Platforms: Manus, Computer Use \& Beyond}{9}{section.53}%
+\contentsline {subsection}{\numberline {53.1}Manus AI overview (Butterfly Effect)}{9}{subsection.53.1}%
+\contentsline {subsection}{\numberline {53.2}Anthropic Computer Use}{9}{subsection.53.2}%
+\contentsline {subsection}{\numberline {53.3}OpenAI Operator \& Agents SDK}{9}{subsection.53.3}%
+\contentsline {subsection}{\numberline {53.4}Browser-use \& web automation}{9}{subsection.53.4}%
+\contentsline {subsection}{\numberline {53.5}Desktop agent architectures}{9}{subsection.53.5}%
+\contentsline {subsection}{\numberline {53.6}Security \& sandboxing for autonomous agents}{9}{subsection.53.6}%
+\contentsline {subsection}{\numberline {53.7}Meta's agent research (LLaMA, CICERO)}{9}{subsection.53.7}%

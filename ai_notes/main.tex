@@ -1,0 +1,233 @@
+% AI / LLM / Agents / Hardware Notes
+% Main entry point — compile with: pdflatex main.tex
+
+\documentclass[11pt,a4paper]{article}
+
+% --- Packages ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=0.8in]{geometry}
+\usepackage{listings}
+\usepackage[table]{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{fancyhdr}
+\setlength{\headheight}{13.6pt}
+\addtolength{\topmargin}{-1.6pt}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{parskip}
+\usepackage{colortbl}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{pgfplots}
+\usepackage{tikz}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{positioning, arrows.meta, matrix, fit, backgrounds, decorations.pathreplacing}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+
+% --- Color palette ---
+\definecolor{codebg}{RGB}{245,245,245}
+\definecolor{codegreen}{RGB}{0,128,0}
+\definecolor{codegray}{RGB}{128,128,128}
+\definecolor{codeblue}{RGB}{0,0,180}
+\definecolor{codepurple}{RGB}{100,0,140}
+
+\definecolor{aiblue}{RGB}{14,95,165}
+\definecolor{aiteal}{RGB}{15,110,86}
+\definecolor{aiamber}{RGB}{133,79,11}
+\definecolor{aicoral}{RGB}{153,60,29}
+\definecolor{aipurple}{RGB}{83,74,183}
+\definecolor{aigray}{RGB}{95,94,90}
+
+\definecolor{okgreen}{RGB}{234,243,222}
+\definecolor{oktext}{RGB}{59,109,17}
+\definecolor{warnbg}{RGB}{250,238,218}
+\definecolor{warntext}{RGB}{133,79,11}
+\definecolor{badbg}{RGB}{252,235,235}
+\definecolor{badtext}{RGB}{163,45,45}
+\definecolor{infobg}{RGB}{230,241,251}
+\definecolor{infotext}{RGB}{24,95,165}
+
+% --- Code listing style (Python default) ---
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{codebg},
+    keywordstyle=\color{codeblue}\bfseries,
+    stringstyle=\color{codegreen},
+    commentstyle=\color{codegray}\itshape,
+    numberstyle=\tiny\color{codegray},
+    breaklines=true,
+    breakatwhitespace=false,
+    tabsize=4,
+    showstringspaces=false,
+    frame=single,
+    rulecolor=\color{codegray!50},
+    numbers=left,
+    numbersep=8pt,
+    xleftmargin=2em,
+    framexleftmargin=1.5em,
+    captionpos=b,
+    morekeywords={self,True,False,None,import,from,as,with,yield,async,await,
+                   lambda,class,def,return,raise,assert,pass,del,global,nonlocal},
+}
+
+% --- CUDA / C++ listing style ---
+\lstdefinestyle{cuda}{
+    language=C++,
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{codebg},
+    keywordstyle=\color{codeblue}\bfseries,
+    stringstyle=\color{codegreen},
+    commentstyle=\color{codegray}\itshape,
+    morekeywords={__global__,__device__,__host__,__shared__,__constant__,
+                  threadIdx,blockIdx,blockDim,gridDim,cudaMalloc,cudaFree,
+                  cudaMemcpy,cudaDeviceSynchronize},
+}
+
+% --- Callout boxes ---
+\newtcolorbox{notebox}[1][]{
+    colback=infobg, colframe=aiblue, coltitle=infotext,
+    fonttitle=\bfseries\small, title=Note, #1,
+    left=6pt, right=6pt, top=4pt, bottom=4pt,
+    breakable, enhanced
+}
+\newtcolorbox{warnbox}[1][]{
+    colback=warnbg, colframe=aiamber, coltitle=warntext,
+    fonttitle=\bfseries\small, title=Warning, #1,
+    left=6pt, right=6pt, top=4pt, bottom=4pt,
+    breakable, enhanced
+}
+\newtcolorbox{intuitionbox}[1][]{
+    colback=okgreen, colframe=aiteal, coltitle=oktext,
+    fonttitle=\bfseries\small, title=Intuition, #1,
+    left=6pt, right=6pt, top=4pt, bottom=4pt,
+    breakable, enhanced
+}
+\newtcolorbox{paperbox}[1][]{
+    colback=codebg, colframe=aipurple, coltitle=aipurple,
+    fonttitle=\bfseries\small, title=Paper, #1,
+    left=6pt, right=6pt, top=4pt, bottom=4pt,
+    breakable, enhanced
+}
+
+% --- Page style ---
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\leftmark}
+\fancyhead[R]{AI / LLM / Agents Notes}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% --- Section formatting ---
+\titleformat{\section}[block]{\Large\bfseries}{}{0em}{}
+\newcommand{\sectionbreak}{\newpage}
+\titleformat{\subsection}[block]{\large\bfseries}{}{0em}{}
+
+% --- Hyperlinks ---
+\hypersetup{
+    colorlinks=true,
+    linkcolor=aiblue,
+    urlcolor=aiblue,
+    citecolor=aiblue,
+}
+
+% --- Title ---
+\title{\textbf{AI / LLM / Agents / Hardware Notes}\\[0.5em]
+       \Large Foundations $\cdot$ Architecture $\cdot$ Systems $\cdot$ Frontiers}
+\author{Jeriel Chan}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% ── PART I: FOUNDATIONS ─────────────────────────────────────────────
+\input{chapters/01_math_foundations}
+\input{chapters/02_classical_ml}
+\input{chapters/03_neural_networks}
+\input{chapters/04_backprop_autodiff}
+\input{chapters/05_training_tricks}
+
+% ── PART II: LLM ARCHITECTURE ───────────────────────────────────────
+\input{chapters/06_transformer}
+\input{chapters/07_attention}
+\input{chapters/08_positional_enc}
+\input{chapters/09_tokenization}
+\input{chapters/10_scaling_laws}
+
+% ── PART III: LLM TRAINING & FINE-TUNING ────────────────────────────
+\input{chapters/11_pretraining}
+\input{chapters/12_finetuning}
+\input{chapters/13_rlhf_dpo}
+\input{chapters/14_moe}
+
+% ── PART IV: INFERENCE & PROMPTING ──────────────────────────────────
+\input{chapters/15_inference}
+\input{chapters/16_quantization}
+\input{chapters/17_prompting}
+\input{chapters/18_rag}
+
+% ── PART V: AGENTS & PLANNING ───────────────────────────────────────
+\input{chapters/19_agents_fundamentals}
+\input{chapters/20_tool_use}
+\input{chapters/21_multi_agent}
+\input{chapters/22_agent_memory}
+\input{chapters/23_planning}
+
+% ── PART VI: WORLD MODELS ───────────────────────────────────────────
+\input{chapters/24_world_models_theory}
+\input{chapters/25_video_models}
+\input{chapters/26_embodied_ai}
+
+% ── PART VII: MULTIMODAL ────────────────────────────────────────────
+\input{chapters/27_vision_language}
+\input{chapters/28_diffusion}
+\input{chapters/29_audio_multimodal}
+
+% ── PART VIII: HARDWARE ─────────────────────────────────────────────
+\input{chapters/30_gpu_architecture}
+\input{chapters/31_tpu_asic}
+\input{chapters/32_memory_hierarchy}
+\input{chapters/33_distributed_training}
+\input{chapters/34_inference_hw}
+
+% ── PART IX: AI ON OS & EDGE ────────────────────────────────────────
+\input{chapters/35_on_device}
+\input{chapters/36_openclaw_os}
+\input{chapters/37_embedded_ai}
+\input{chapters/38_edge_deploy}
+
+% ── PART X: SYSTEMS PROGRAMMING ─────────────────────────────────────
+\input{chapters/39_cuda_kernels}
+\input{chapters/40_triton}
+\input{chapters/41_profiling}
+
+% ── PART XI: ALIGNMENT & SAFETY ─────────────────────────────────────
+\input{chapters/42_safety}
+\input{chapters/43_constitutional_ai}
+\input{chapters/44_interpretability}
+
+% ── PART XII: EVALUATION ─────────────────────────────────────────────
+\input{chapters/45_eval_methodology}
+\input{chapters/46_benchmarks}
+\input{chapters/47_agent_evals}
+
+% ── PART XIII: FRONTIERS ─────────────────────────────────────────────
+\input{chapters/48_ssm_mamba}
+\input{chapters/49_test_time_compute}
+\input{chapters/50_neurosymbolic}
+\input{chapters/51_paper_notes}
+
+% ── PART XIV: AI DEVELOPER TOOLS ────────────────────────────────────
+\input{chapters/52_coding_agents_ides}
+\input{chapters/53_agentic_platforms}
+
+\end{document}
