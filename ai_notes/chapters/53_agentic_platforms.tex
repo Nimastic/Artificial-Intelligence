@@ -26,6 +26,86 @@ rather than relying on soft in-context instructions. Enterprise policy rules
 (data residency, domain whitelists, filesystem scoping) are enforced by OpenShell
 before any action executes, regardless of what the agent reasons it should do.
 
+\textbf{OpenClaw as ``Agentic OS.''} Jensen Huang framed OpenClaw at GTC as the
+operating system for \emph{personal agents} in the same way Windows was the OS for
+personal computers: a universal runtime that abstracts hardware and exposes a stable
+interface for applications. The analogy maps naturally --- OpenClaw manages resources
+(tools, file systems, models), schedules work (cron jobs, task decomposition), spawns
+sub-agents (analogous to processes), and handles I/O in any modality. Just as every
+company needed a Linux strategy, an HTTP strategy, and a Kubernetes strategy, the
+argument is that every software company now needs an \emph{OpenClaw strategy}.
+
+\begin{notebox}[title={Nemotron Coalition}]
+  NVIDIA announced a coalition of companies committing to build on and contribute to
+  Nemotron\,4: \textbf{Black Forest Labs} (image generation), \textbf{Cursor}
+  (AI coding IDE), \textbf{LangChain} (agent frameworks), \textbf{Mistral},
+  \textbf{Perplexity}, \textbf{Reflection}, \textbf{Sarv} (India), \textbf{Thinking
+  Machines}, and \textbf{Mirror/Moradi's lab}. The coalition accelerates the ecosystem
+  of fine-tuned and specialised derivatives around a shared open base model.
+\end{notebox}
+
+\textbf{NVIDIA Open Model Families.} Beyond Nemotron (language), NVIDIA maintains six
+frontier open model families spanning radically different domains:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lp{8cm}}
+\toprule
+\textbf{Model family} & \textbf{Domain} \\
+\midrule
+\textbf{Nemotron} & Language: reasoning, visual understanding, RAG, safety, speech \\
+\textbf{Cosmos} & Physical AI: world generation and understanding for robotics/simulation \\
+\textbf{Alpamo} & Autonomous vehicles: the world's first thinking/reasoning AV model \\
+\textbf{Groot} & General-purpose humanoid and articulated robotics \\
+\textbf{Bioneo} & Biology, chemistry, and molecular design \\
+\textbf{Earth\,2} & Weather and climate forecasting via AI physics \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{intuitionbox}
+  These six families reflect the fact that no single model can serve every industry.
+  Language intelligence (Nemotron) and physical-world intelligence (Cosmos, Alpamo,
+  Groot) require fundamentally different training distributions, evaluation criteria,
+  and safety considerations. NVIDIA's strategy: maintain frontier open models in each
+  vertical so that industry partners can fine-tune domain-specific sovereign models on
+  top.
+\end{intuitionbox}
+
+\subsection{SaaS \texorpdfstring{$\to$}{→} AaaS: the agentic transformation}
+
+The enterprise software industry is undergoing a structural shift from
+\textbf{Software-as-a-Service (SaaS)} to \textbf{Agentic-as-a-Service (AaaS)}.
+Traditional SaaS companies build tools that \emph{humans} use: dashboards, workflow
+engines, systems of record. Post-OpenClaw, those same companies are rebuilding their
+products as agentic services --- autonomous agents that \emph{act} on a company's behalf,
+not tools that humans operate.
+
+\textbf{Enterprise IT before/after agentic systems.}
+\begin{itemize}
+  \item \textbf{Before (SaaS):} data centres hold structured business data; software
+    exposes tools; humans (or digital workers) operate those tools; GSI consultants
+    integrate everything. Value is created by humans wielding software.
+  \item \textbf{After (AaaS):} agents sit on top of the same data stores and SaaS
+    APIs, but they operate autonomously. The company's domain expertise is encoded in
+    agent configurations rather than in UI workflows.
+\end{itemize}
+
+\textbf{Token budgets as a new engineering resource.} Huang predicted that every
+engineer will eventually carry an \emph{annual token budget} --- analogous to a compute
+or travel budget --- allowing them to amplify their work via AI inference. A software
+engineer paid \$200K might receive a token budget worth \$100K+ on top, with the
+expectation of 10$\times$ productivity. Token budget size is already emerging as a
+recruiting differentiator in Silicon Valley.
+
+\begin{notebox}
+  The implication is that companies will simultaneously be \emph{token consumers}
+  (buying compute to amplify their own engineers) and \emph{token manufacturers}
+  (packaging their domain expertise as agentic services that customers pay per-token
+  to access). AI factories (GPU clusters) become the production infrastructure for
+  both sides of this equation.
+\end{notebox}
+
 \subsection{Anthropic Computer Use}
 
 Anthropic's \emph{Computer Use} capability (released October 2024) exposes the model's

@@ -5,17 +5,377 @@
 
 \subsection{LeCun's JEPA architecture}
 
-% TODO
+\subsubsection{Critique of Autoregressive Models as World Models}
+
+Yann LeCun's fundamental critique of using autoregressive large language models (and autoregressive vision models) as world models concerns \textbf{wasted modeling capacity}. When a model predicts the next pixel or token from context, it must allocate capacity to capturing:
+
+\begin{enumerate}
+    \item \textbf{Predictable} structure (high utility for world understanding)
+    \item \textbf{Unpredictable} variation: photon noise, hair particle positions, thermal fluctuations, stochastic choices made by agents
+\end{enumerate}
+
+For high-resolution images or long sequences, the unpredictable signal dominates, forcing the model to spread its representational budget across meaningless details.
+
+\begin{warnbox}
+    \textbf{The Pixel Prediction Problem:} A model predicting RGB pixels must learn the statistics of camera noise, weather variation, and random object motion. In contrast, human prediction works in a \textit{compressed representation space}---we don't predict pixels, we predict ``the ball will be at location X with velocity V'', which is far lower-dimensional.
+\end{warnbox}
+
+\subsubsection{JEPA: Joint-Embedding Predictive Architecture}
+
+JEPA inverts the prediction strategy: instead of predicting observations, predict in \textbf{learned representation space}.
+
+\textbf{Key components:}
+\begin{itemize}
+    \item \textbf{Encoder} $f_\theta$: maps observations (context) $\mathbf{x}$ to representation $\mathbf{s}_x = f_\theta(\mathbf{x})$
+    \item \textbf{Predictor} $\mathbf{p}_\phi$: maps context representation to predicted target representation $\hat{\mathbf{s}}_y = p_\phi(\mathbf{s}_x)$
+    \item \textbf{Encoder} $f_\theta$: encodes actual target $\mathbf{y}$ to true target representation $\mathbf{s}_y = f_\theta(\mathbf{y})$
+    \item \textbf{Loss}: MSE in representation space: $\mathcal{L} = \| \mathbf{s}_y - \hat{\mathbf{s}}_y \|_2^2$
+\end{itemize}
+
+\begin{intuitionbox}
+    The encoder $f_\theta$ is shared across context and target. This \textit{tightens} the bottleneck: the predictor cannot exploit the encoder to expand information. The representational space must be meaningful, not just a reconstruction buffer.
+\end{intuitionbox}
+
+\begin{figure}[h]
+    \centering
+    \begin{tikzpicture}[
+        node distance=1.5cm,
+        block/.style={rectangle, draw=aiblue, fill=infobg, rounded corners, minimum width=2cm, minimum height=0.8cm, font=\small},
+        encode/.style={rectangle, draw=aiteal, fill=infobg, rounded corners, minimum width=1.8cm, minimum height=0.8cm, font=\small},
+        predict/.style={rectangle, draw=aicoral, fill=infobg, rounded corners, minimum width=1.8cm, minimum height=0.8cm, font=\small},
+        loss/.style={rectangle, draw=warnbg, fill=warnbg, rounded corners, minimum width=1.2cm, minimum height=0.8cm, font=\small, text=white},
+        arrow/.style={->, thick, >=Stealth}
+    ]
+
+    % Context pathway
+    \node[block] (x) {$\mathbf{x}$ (context)};
+    \node[encode, right=of x] (fx) {$f_\theta$};
+    \node[block, right=of fx] (sx) {$\mathbf{s}_x$};
+
+    % Predictor
+    \node[predict, right=of sx] (pred) {$p_\phi$};
+    \node[block, right=of pred] (shat) {$\hat{\mathbf{s}}_y$};
+
+    % Target pathway
+    \node[block, below=2cm of sx] (y) {$\mathbf{y}$ (target)};
+    \node[encode, right=of y] (fy) {$f_\theta$};
+    \node[block, right=of fy] (sy) {$\mathbf{s}_y$};
+
+    % Loss
+    \node[loss, right=1.5cm of sy, yshift=0.8cm] (loss) {$\mathcal{L}$};
+
+    % Arrows
+    \draw[arrow] (x) -- (fx);
+    \draw[arrow] (fx) -- (sx);
+    \draw[arrow] (sx) -- (pred);
+    \draw[arrow] (pred) -- (shat);
+    \draw[arrow] (shat) -- (loss);
+
+    \draw[arrow] (y) -- (fy);
+    \draw[arrow] (fy) -- (sy);
+    \draw[arrow] (sy) -- (loss);
+
+    % Annotations
+    \node[below=0.3cm of fx, font=\tiny, color=aiteal] {shared};
+    \node[below=0.3cm of fy, font=\tiny, color=aiteal] {shared};
+
+    \end{tikzpicture}
+    \caption{JEPA architecture: predict in representation space, not observation space.}
+\end{figure}
+
+\subsubsection{Energy-Based Models (EBMs)}
+
+To prevent \textit{collapse} (all representations becoming identical), JEPA uses an energy-based framework. An energy function $E(\mathbf{s}_x, \mathbf{s}_y)$ assigns a scalar score to representation pairs:
+
+\[
+E(\mathbf{s}_x, \mathbf{s}_y) = \| \mathbf{s}_y - \hat{\mathbf{s}}_y \|_2^2
+\]
+
+\textbf{Interpretation:}
+\begin{itemize}
+    \item Low energy: $\mathbf{s}_x$ and $\mathbf{s}_y$ are compatible (prediction succeeds)
+    \item High energy: incompatible (prediction fails)
+\end{itemize}
+
+EBMs naturally handle multimodal futures: if multiple futures are plausible, they all have low energy. In contrast, regression-based models force a single Gaussian mode.
+
+\subsubsection{I-JEPA: Image Variant}
+
+I-JEPA applies JEPA to image patches. Training:
+
+\begin{enumerate}
+    \item Mask random patches from target image (e.g., 50\% masking)
+    \item Context = unmasked patches
+    \item Predictor must infer representations of masked patches from surrounding context
+    \item Loss computed only on masked patch representations
+\end{enumerate}
+
+This forces the encoder to learn representations that capture \textbf{semantic structure}, not pixel details, because the model must \textbf{generalize across patch boundaries}.
+
+\subsubsection{V-JEPA: Video Variant}
+
+V-JEPA extends JEPA to video by masking spacetime tubes (e.g., regions in time and space):
+
+\begin{itemize}
+    \item Context: visible spacetime regions (e.g., earlier frames, peripheral regions)
+    \item Target: masked spacetime tube (e.g., a future time window, central region)
+    \item Encoder processes spatiotemporal features
+    \item Predictor predicts future motion and changes
+\end{itemize}
+
+V-JEPA learns dynamics without predicting raw pixels, instead learning representations of motion, occlusions, and object interactions.
+
+\begin{notebox}
+    \textbf{Key Insight:} By predicting in representation space and using masking as self-supervision, JEPA variants avoid the pixel-prediction curse. The model learns what is \textit{semantically important} because masking forces it to generalize beyond pixel statistics.
+\end{notebox}
 
 \subsection{Dreamer (RSSM)}
 
-% TODO
+\subsubsection{Recurrent State Space Models (RSSM)}
+
+Dreamer introduces the \textbf{Recurrent State Space Model}, a hybrid deterministic-stochastic architecture for learning world models from observations and actions.
+
+\textbf{State evolution (two components):}
+
+\begin{enumerate}
+    \item \textbf{Deterministic path}: $\mathbf{h}_t = \text{GRU}(\mathbf{h}_{t-1}, \mathbf{z}_{t-1}, \mathbf{a}_{t-1})$
+    \begin{itemize}
+        \item GRU processes previous hidden state, stochastic latent, and action
+        \item Captures \textit{causal, deterministic dynamics}
+    \end{itemize}
+
+    \item \textbf{Stochastic latent}: $\mathbf{z}_t \sim q(\mathbf{z}_t \mid \mathbf{h}_t, \mathbf{x}_t)$ (during training)
+    \begin{itemize}
+        \item Posterior encoder $q$ uses current observation $\mathbf{x}_t$
+        \item Prior $p(\mathbf{z}_t \mid \mathbf{h}_t)$ depends only on deterministic state
+        \item Captures \textit{stochastic variations} (multiple plausible futures)
+    \end{itemize}
+\end{enumerate}
+
+\textbf{Reconstruction:} Decoder $p(\mathbf{x}_t \mid \mathbf{h}_t, \mathbf{z}_t)$ reconstructs observations from combined state.
+
+\subsubsection{Training with ELBO}
+
+The world model is trained by maximizing the evidence lower bound (ELBO):
+
+\[
+\mathcal{L}_{\text{world}} = \mathbb{E}_{q(\mathbf{z}_{t:T})} \left[ \sum_{t=1}^T \left( \log p(\mathbf{x}_t \mid \mathbf{h}_t, \mathbf{z}_t) - \beta \, \text{KL}(q(\mathbf{z}_t \mid \mathbf{h}_t, \mathbf{x}_t) \| p(\mathbf{z}_t \mid \mathbf{h}_t)) \right) \right]
+\]
+
+\textbf{Components:}
+\begin{itemize}
+    \item \textbf{Reconstruction term}: likelihood $\log p(\mathbf{x}_t \mid \mathbf{h}_t, \mathbf{z}_t)$ reconstructs observations accurately
+    \item \textbf{KL term}: $\text{KL}(q \| p)$ regularizes posterior to stay close to prior, preventing information collapse
+    \item \textbf{$\beta$ schedule}: annealing from $\beta=0$ (ignore KL) to $\beta=1$ (full ELBO)
+\end{itemize}
+
+\begin{intuitionbox}
+    The stochastic latent $\mathbf{z}_t$ is not forced to predict everything; the deterministic path $\mathbf{h}_t$ can capture predictable dynamics. The latent only encodes information that helps \textit{reconstruct the observation} (ELBO objective), encouraging learning of multi-modal futures.
+\end{intuitionbox}
+
+\subsubsection{Policy Learning from Imagination}
+
+Dreamer's key insight: \textbf{train the policy entirely on imagined trajectories, never updating the policy with real environment interaction}.
+
+\textbf{Procedure:}
+
+\begin{enumerate}
+    \item Sample initial state from real observations: $(\mathbf{h}_0, \mathbf{z}_0)$
+    \item \textbf{Imagine ahead}: Sample actions $\mathbf{a}_t$ from policy $\pi_\psi(\mathbf{a}_t \mid \mathbf{h}_t)$, evolve latent state using learned RSSM
+    \item Trajectory is entirely in learned representation space (no real environment)
+    \item Compute imagined reward $r_t = r(\mathbf{h}_t, \mathbf{z}_t)$
+    \item Apply any RL algorithm (actor-critic, policy gradient) to imagined trajectories
+\end{enumerate}
+
+\textbf{Advantage:}
+\begin{itemize}
+    \item \textbf{Sample efficiency}: one real trajectory generates many imagined rollouts
+    \item \textbf{Policy learning cost}: computed from learned models, not environment interactions
+    \item \textbf{Exploration}: can imagine counterfactual trajectories not yet observed
+\end{itemize}
+
+\subsubsection{DreamerV3: Unified Hyperparameters}
+
+DreamerV3 extends Dreamer with the achievement: \textbf{same hyperparameters work across diverse environments} (vision-based control, manipulation, locomotion, Atari games).
+
+\textbf{Key improvements:}
+\begin{itemize}
+    \item \textbf{Latent overshooting}: predict multiple steps ahead in latent space, improving long-horizon planning
+    \item \textbf{Separate model and value networks}: value function has its own head on $\mathbf{h}_t$
+    \item \textbf{Actor-critic RL}: actor improves policy via gradient, critic learns value function
+    \item \textbf{World model loss normalization}: scale reconstruction loss to improve gradient flow
+\end{itemize}
+
+\begin{notebox}
+    DreamerV3 demonstrates that learning world models for RL is not just feasible but can \textit{generalize} across problem classes when the architecture and loss design are principled.
+\end{notebox}
 
 \subsection{World models in RL}
 
-% TODO
+\subsubsection{Model-Free vs. Model-Based: Trade-offs}
+
+\begin{table}[h]
+    \centering
+    \small
+    \begin{tabular}{|c|c|c|}
+        \hline
+        \textbf{Aspect} & \textbf{Model-Free} & \textbf{Model-Based} \\
+        \hline
+        \textbf{Sample Efficiency} & Low ($10^6$--$10^9$ steps) & High ($10^3$--$10^5$ steps) \\
+        \hline
+        \textbf{Computational Cost} & Low (just function approximation) & High (model + planning) \\
+        \hline
+        \textbf{Model Error} & N/A & Compounds over long horizons \\
+        \hline
+        \textbf{Transferability} & Poor (policy is narrow) & Good (model captures dynamics) \\
+        \hline
+        \textbf{Planning Horizon} & Implicit ($V$ network horizon) & Explicit (N steps) \\
+        \hline
+        \textbf{Exploration} & Via $\epsilon$-greedy or entropy & Via uncertainty in model \\
+        \hline
+        \textbf{Example Algorithms} & DQN, PPO, SAC & PILCO, Dreamer, MuZero \\
+        \hline
+    \end{tabular}
+    \caption{Comparison of model-free and model-based RL approaches.}
+\end{table}
+
+\subsubsection{Dyna: The Hybrid Approach}
+
+Sutton's \textbf{Dyna algorithm} (1991) blends both approaches:
+
+\textbf{Algorithm flow:}
+\begin{enumerate}
+    \item \textbf{Real step}: execute action $\mathbf{a}_t$ in environment, observe $(\mathbf{x}_{t+1}, r_t)$
+    \item \textbf{Update model}: train dynamics model $p(\mathbf{x}_{t+1} \mid \mathbf{x}_t, \mathbf{a}_t)$
+    \item \textbf{Update value function}: via real transition
+    \item \textbf{Imagination loop} (K iterations):
+    \begin{itemize}
+        \item Sample state $\mathbf{x}_s$ from replay buffer
+        \item Sample action $\mathbf{a}_s$ from policy
+        \item Predict next state $\hat{\mathbf{x}}_{s+1}$ and reward $\hat{r}_s$ using model
+        \item Update value function via imagined transition
+    \end{itemize}
+\end{enumerate}
+
+\textbf{Intuition:} For each real step, gain K imagined steps worth of value learning. Model errors are contained because value estimates are grounded in real transitions.
+
+\subsubsection{MuZero: Latent Dynamics + Planning}
+
+MuZero combines learned latent dynamics with Monte Carlo tree search (MCTS) for planning.
+
+\textbf{Architecture:}
+\begin{itemize}
+    \item \textbf{Representation network} $h$: $\mathbf{s}_0 = h(\mathbf{x}_0, \ldots, \mathbf{x}_t)$ maps observation history to latent state
+    \item \textbf{Dynamics network} $g$: $\mathbf{s}_{k+1} = g(\mathbf{s}_k, \mathbf{a}_k)$ predicts next latent state (deterministic)
+    \item \textbf{Policy head} $\pi(\mathbf{a} \mid \mathbf{s}_k)$: predicts action logits in latent space
+    \item \textbf{Value head} $v(\mathbf{s}_k)$: predicts value estimate
+    \item \textbf{Reward head} $r(\mathbf{s}_k, \mathbf{a}_k)$: predicts immediate reward
+\end{itemize}
+
+\textbf{Training:}
+\begin{enumerate}
+    \item \textbf{Collect trajectories}: play with MCTS using learned models
+    \item \textbf{MCTS planning}: expand tree by calling dynamics network, use policy/value heads for rollout
+    \item \textbf{Supervised learning}: train representation, dynamics, policy, value, reward heads to match MCTS search statistics
+\end{enumerate}
+
+\textbf{Key advantage:}
+\begin{itemize}
+    \item Only predicts in \textbf{latent space}, not pixels (avoids pixel-prediction curse)
+    \item Value and policy targets come from MCTS (more accurate than raw environment returns)
+    \item Achieves human-level performance in Atari with sample efficiency between model-free and full model-based
+\end{itemize}
+
+\begin{warnbox}
+    \textbf{Compounding Error Risk:} Any learned dynamics model accumulates error when unrolled multiple steps. MuZero mitigates this by: (1) using MCTS to aggregate multiple rollouts, and (2) training the model on MCTS targets rather than ground truth.
+\end{warnbox}
 
 \subsection{Predictive coding theories}
 
-% TODO
+\subsubsection{Historical Foundations}
+
+\textbf{Rao \& Ballard (1999)} proposed that the brain performs hierarchical predictive coding:
+\begin{itemize}
+    \item Top-down: higher layers send \textit{predictions} of lower-layer activity
+    \item Bottom-up: lower layers compute \textit{prediction errors} (observed - predicted)
+    \item Error signals drive learning in both forward (generative) and backward (error) pathways
+\end{itemize}
+
+\textbf{Free Energy Principle (Friston, 2010)}:
+
+Perception and learning minimize the variational free energy:
+
+\[
+F = \mathbb{KL}(q(\mathbf{z} \mid \mathbf{x}) \| p(\mathbf{z})) - \mathbb{E}_{q(\mathbf{z})} \log p(\mathbf{x} \mid \mathbf{z})
+\]
+
+This is equivalent to the ELBO (evidence lower bound), meaning: \textbf{minimize prediction error while keeping the posterior close to the prior}.
+
+\subsubsection{Hierarchical Prediction and Error Signals}
+
+\textbf{Hierarchical structure:}
+
+Consider a three-level hierarchy:
+
+\begin{enumerate}
+    \item \textbf{Level 3 (abstract)}: high-level concepts (e.g., ``scene type'')
+    \item \textbf{Level 2 (intermediate)}: object properties and spatial layout
+    \item \textbf{Level 1 (sensory)}: low-level features (e.g., edges, colors)
+\end{enumerate}
+
+\textbf{Top-down predictions:} Level 3 generates predictions of Level 2 activity; Level 2 predicts Level 1.
+
+\textbf{Bottom-up error signals:}
+\begin{itemize}
+    \item Level 1 computes $\boldsymbol{\delta}_1 = \mathbf{x}_{\text{obs}} - \hat{\mathbf{x}}_1^{\text{pred}}$ (sensory prediction error)
+    \item Level 2 computes $\boldsymbol{\delta}_2 = \mathbf{x}_1 - \hat{\mathbf{x}}_2^{\text{pred}}$ (error in predicting Level 1 features)
+    \item Level 3 interprets $\boldsymbol{\delta}_2$ to refine high-level hypothesis
+\end{itemize}
+
+\begin{intuitionbox}
+    This hierarchical organization means low-level errors (pixel noise) are not propagated to high-level learning; only errors that \textit{violate higher-level predictions} drive top-level adjustment. This naturally implements \textit{attention} to surprising events.
+\end{intuitionbox}
+
+\subsubsection{Connection to Variational Autoencoders (VAEs)}
+
+VAEs implement predictive coding in a generative model:
+
+\[
+\mathcal{L}_{\text{VAE}} = -\mathbb{E}_{q(\mathbf{z}|\mathbf{x})} \log p(\mathbf{x} \mid \mathbf{z}) + \beta \, \text{KL}(q(\mathbf{z} \mid \mathbf{x}) \| p(\mathbf{z}))
+\]
+
+\textbf{Interpretation in predictive coding terms:}
+\begin{itemize}
+    \item Encoder $q(\mathbf{z} \mid \mathbf{x})$: bottom-up inference of latent state
+    \item Decoder $p(\mathbf{x} \mid \mathbf{z})$: top-down generative model (predictions)
+    \item Reconstruction loss: prediction error magnitude
+    \item KL term: regularizes inference (posterior) to stay close to learned prior
+\end{itemize}
+
+\textbf{Key insight:} VAEs are not just compression machines; they implement a learned hierarchical model where the encoder infers hidden causes and the decoder makes predictions.
+
+\subsubsection{Connection to JEPA}
+
+JEPA is the modern descendant of predictive coding, applied to representation learning:
+
+\begin{itemize}
+    \item \textbf{Like predictive coding:} prediction occurs in a learned representation, not raw observation space; multimodal futures are allowed (energy-based, not mode-collapsing)
+    \item \textbf{Unlike predictive coding:} no explicit hierarchical error propagation; learned via end-to-end training
+    \item \textbf{Advantage over VAE:} JEPA avoids the pixel-reconstruction objective (which VAEs still use); instead, predictions are in a task-relevant latent space
+\end{itemize}
+
+\textbf{Unified view:}
+
+\begin{itemize}
+    \item \textbf{Predictive coding}: minimize prediction error in a sensory hierarchy
+    \item \textbf{VAEs}: learn a latent code to minimize reconstruction error + KL
+    \item \textbf{JEPA}: learn representations by predicting masked observations in latent space (no reconstruction required)
+    \item \textbf{World models (Dreamer, MuZero):} use learned latent dynamics for planning in RL
+\end{itemize}
+
+All share the principle: \textbf{learning occurs through prediction, and prediction is most efficient in learned representation spaces, not raw observation spaces}.
+
+\begin{notebox}
+    \textbf{Fundamental Principle:} Intelligent agents must predict future states (or compressed representations) to plan and learn. The efficiency of this prediction depends on the representation: predicting compressed, task-relevant features is far more tractable than predicting raw sensor data. This principle unifies predictive coding, VAEs, JEPA, and world-model-based RL.
+\end{notebox}
 

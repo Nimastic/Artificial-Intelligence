@@ -3,23 +3,315 @@
 
 \section{Diffusion Models \& Generative Vision}
 
+\subsection{GANs \& VAEs (generative predecessors)}
+
+Before diffusion models dominated image generation, two main approaches competed: \textbf{Generative Adversarial Networks (GANs)} and \textbf{Variational Autoencoders (VAEs)}.
+
+\begin{paperbox}[title={GAN: The Min-Max Game}]
+\textbf{GAN} (Goodfellow et al., 2014) trains two networks:
+\begin{itemize}
+  \item \textbf{Generator} $G: z \sim p(z) \to \mathbb{R}^d$ maps noise (e.g., standard Gaussian) to fake samples.
+  \item \textbf{Discriminator} $D: x \to [0,1]$ tries to distinguish real from fake.
+\end{itemize}
+The adversarial objective:
+\[
+\min_G \max_D \mathbb{E}_{x \sim p_\text{data}}[\log D(x)] + \mathbb{E}_{z \sim p(z)}[\log(1 - D(G(z)))]
+\]
+Training alternates: discriminator tries to maximize, generator tries to minimize. Samples are sharp and realistic when well-trained.
+
+\begin{warnbox}
+\textbf{GAN Drawbacks:}
+\begin{itemize}
+  \item \textbf{Mode collapse:} Generator finds a few modes and ignores others, reducing diversity.
+  \item \textbf{Training instability:} Careful tuning of learning rates and architectures required.
+  \item \textbf{Vanishing gradients:} When $D$ is too good, $\log(1-D(G(z)))$ saturates; switching to $-\log D(G(z))$ helps.
+\end{itemize}
+\end{warnbox}
+
+Notable variants: \textbf{DCGAN} (convolutional architecture), \textbf{StyleGAN} (style-based generation, high quality), \textbf{CycleGAN} (unpaired image translation).
+\end{paperbox}
+
+\begin{paperbox}[title={VAE: Latent Variable Model}]
+\textbf{VAE} (Kingma \& Welling, 2014) uses an encoder-decoder with a learned latent distribution:
+\begin{itemize}
+  \item \textbf{Encoder} $q_\phi(z|x)$: maps input $x$ to a distribution, typically $\mathcal{N}(\mu_\phi(x), \text{diag}(\sigma_\phi^2(x)))$.
+  \item \textbf{Decoder} $p_\theta(x|z)$: reconstructs $x$ from sampled $z$.
+\end{itemize}
+Trained with the \textbf{ELBO} (Evidence Lower Bound):
+\[
+\mathcal{L} = \mathbb{E}_{q_\phi(z|x)}[\log p_\theta(x|z)] - \textsc{KL}(q_\phi(z|x) \parallel p(z))
+\]
+The \textbf{reparameterization trick} enables backprop: $z = \mu + \sigma \odot \epsilon$, $\epsilon \sim \mathcal{N}(0,I)$.
+
+\begin{intuitionbox}
+The KL term regularizes the latent space toward the prior (e.g., $\mathcal{N}(0,I)$), enabling smooth interpolation and generation from the prior. Reconstruction and regularization are always in tension.
+\end{intuitionbox}
+
+\textbf{VAE limitations:} Blurry outputs (Gaussian decoder assumption limits expressiveness); less sharp than GANs.
+\end{paperbox}
+
+\begin{notebox}
+\textbf{Summary:} GANs are sharp but unstable; VAEs are stable but blurry; diffusion models achieve both sharpness and stability through iterative refinement.
+\end{notebox}
+
+
 \subsection{DDPM \& DDIM}
 
-% TODO
+\begin{paperbox}[title={DDPM: Denoising Diffusion Probabilistic Models}]
+\textbf{DDPM} (Ho et al., 2020) gradually adds noise to data in a Markov chain:
+
+\textbf{Forward process} (fixed, no learning):
+\[
+q(x_t | x_{t-1}) = \mathcal{N}\left(\sqrt{1 - \beta_t} \, x_{t-1}, \beta_t I\right)
+\]
+Over $T$ steps (typically 1000), noise variance $\beta_t$ is small, so the process is slow. After $T$ steps, $x_T \approx \mathcal{N}(0, I)$.
+
+\textbf{Closed form:} Using $\bar{\alpha}_t = \prod_{s=1}^t (1 - \beta_s)$:
+\[
+x_t = \sqrt{\bar{\alpha}_t} \, x_0 + \sqrt{1 - \bar{\alpha}_t} \, \epsilon, \quad \epsilon \sim \mathcal{N}(0, I)
+\]
+This lets us jump directly from $x_0$ to any $x_t$ without iterating.
+
+\textbf{Reverse process} (learned): Train a U-Net $\epsilon_\theta(x_t, t)$ to predict the noise $\epsilon$ added in step $t$:
+\[
+\mathcal{L} = \mathbb{E}_{t, x_0, \epsilon}[\|\epsilon - \epsilon_\theta(x_t, t)\|^2]
+\]
+
+\begin{intuitionbox}
+At inference, start from $x_T \sim \mathcal{N}(0, I)$ and iteratively denoise for $T$ steps, using the learned $\epsilon_\theta$ to reverse the forward process.
+\end{intuitionbox}
+
+\textbf{Key advantage:} Unlike GANs, training is stable; unlike VAEs, samples are sharp. \\
+\textbf{Key drawback:} Requires ~1000 denoising steps, making inference very slow.
+\end{paperbox}
+
+\begin{paperbox}[title={DDIM: Deterministic Sampling}]
+\textbf{DDIM} (Song et al., 2020) reformulates the reverse process as an \textbf{ODE} instead of an SDE, allowing deterministic (non-stochastic) sampling.
+
+Rather than adding noise at each reverse step, DDIM rewrites the reverse process deterministically, reducing required steps from 1000 to 20--50 with minimal quality loss. The rewritten trajectory:
+\[
+x_{t-1} = \sqrt{\bar{\alpha}_{t-1}} \left( \frac{x_t - \sqrt{1-\bar{\alpha}_t} \epsilon_\theta(x_t, t)}{\sqrt{\bar{\alpha}_t}} \right) + \sqrt{1-\bar{\alpha}_{t-1}} \epsilon_\theta(x_t, t)
+\]
+
+\textbf{Advantages:}
+\begin{itemize}
+  \item \textbf{Speed:} 20--50 steps vs. 1000 (50--100× faster).
+  \item \textbf{Deterministic:} Same latent $\Rightarrow$ same output (enables meaningful interpolation).
+  \item \textbf{Quality:} Comparable to DDPM with full steps.
+\end{itemize}
+
+\begin{notebox}
+DDIM's deterministic path is the foundation for latent-space editing and semantic interpolation in tools like Stable Diffusion.
+\end{notebox}
+\end{paperbox}
+
 
 \subsection{Score matching \& SDE perspective}
 
-% TODO
+\begin{paperbox}[title={Score Function \& Score Matching}]
+The \textbf{score function} $s(x) = \nabla_x \log p(x)$ points toward regions of higher density. Training a network to estimate the score is called \textbf{score matching}.
+
+\textbf{Denoising score matching} (Vincent, 2011) shows that score matching is equivalent to DDPM's noise prediction. Instead of predicting $\epsilon$, we can equivalently learn:
+\[
+s_\theta(x_t, t) = -\frac{1}{\sqrt{1-\bar{\alpha}_t}} \epsilon_\theta(x_t, t)
+\]
+This alternative view connects diffusion to the broader score-based generative modeling literature.
+
+\begin{intuitionbox}
+The score function gives a direction and magnitude for how to move toward the data distribution. Iteratively following the score is another way to think about diffusion sampling.
+\end{intuitionbox}
+\end{paperbox}
+
+\begin{paperbox}[title={SDE Perspective: Unifying Diffusion Models}]
+\textbf{Diffusion Models as SDEs} (Song et al., 2021) unify all diffusion models as stochastic differential equations (SDEs).
+
+\textbf{Forward SDE:}
+\[
+dx = \mathbf{f}(x, t) dt + g(t) dW_t
+\]
+where $\mathbf{f}$ is the drift, $g(t)$ controls diffusion (noise), and $W_t$ is a Wiener process.
+
+\textbf{Reverse SDE:}
+\[
+dx = \left[\mathbf{f}(x, t) - g(t)^2 \nabla_x \log p_t(x)\right] dt + g(t) d\bar{W}_t
+\]
+The crucial term is $\nabla_x \log p_t(x)$—the score function at time $t$. By training a network to estimate this score for all $t$, we can run the reverse SDE to sample.
+
+\textbf{Benefits of SDE view:}
+\begin{itemize}
+  \item \textbf{Continuous time:} Treat diffusion as a continuous process; no need to pick $T$ discrete steps.
+  \item \textbf{Probability flow ODE:} The reverse process can be written as a deterministic ODE (generalizes DDIM). Enabling faster sampling via ODE solvers.
+  \item \textbf{Flexibility:} Different choices of drift $\mathbf{f}$ and diffusion $g$ yield different samplers; score is the common learned component.
+\end{itemize}
+
+\begin{notebox}
+\textbf{Key insight:} All diffusion models fundamentally learn the score function $\nabla_x \log p_t(x)$. How you parameterize it (noise prediction vs. direct score prediction) is a choice, but the learned quantity is the same.
+\end{notebox}
+\end{paperbox}
+
 
 \subsection{Stable Diffusion architecture}
 
-% TODO
+\begin{paperbox}[title={Latent Diffusion Models (LDM)}]
+\textbf{Latent Diffusion} (Rombach et al., 2022, now Stable Diffusion) performs diffusion in the latent space of a pretrained VAE instead of pixel space.
+
+\textbf{Architecture components:}
+\begin{enumerate}
+  \item \textbf{VAE Encoder:} Compresses input (e.g., 512$\times$512 RGB image) to a latent tensor (64$\times$64$\times$4).
+  \item \textbf{U-Net denoiser:} Runs the diffusion process entirely in latent space. ~860M parameters; includes cross-attention layers for text conditioning.
+  \item \textbf{CLIP text encoder:} Encodes the text prompt into a sequence of embeddings, fed to cross-attention in the U-Net.
+  \item \textbf{VAE Decoder:} Reconstructs the final image from the denoised latent.
+\end{enumerate}
+
+\textbf{Why latent space?}
+\begin{itemize}
+  \item \textbf{Compression:} 8$\times$ spatial downsampling $\Rightarrow$ 64$\times$ fewer tokens.
+  \item \textbf{Speed:} Diffusion on 64$\times$64 latents is much faster than on 512$\times$512 pixels.
+  \item \textbf{Quality:} VAE's learned compression preserves semantic information; diffusion achieves high-quality details.
+\end{itemize}
+
+\begin{intuitionbox}
+The VAE encoder learns to compress while preserving semantic content. Diffusion refines in this efficient latent space. The decoder expands back to high-resolution images. This layering is key to Stable Diffusion's speed.
+\end{intuitionbox}
+\end{paperbox}
+
+\begin{paperbox}[title={Classifier-Free Guidance}]
+\textbf{Classifier-free guidance} (Ho \& Salimans, 2021) controls how strongly the model follows the text prompt.
+
+During training, the U-Net is trained both with the text conditioning and without (dropping the conditioning with probability $p_\text{uncond}$, e.g., 0.1).
+
+At inference, two predictions are made:
+\begin{itemize}
+  \item $\epsilon_\text{cond}(x_t, t, c)$: noise estimate conditioned on text $c$.
+  \item $\epsilon_\text{uncond}(x_t, t, \varnothing)$: noise estimate without text.
+\end{itemize}
+The guided prediction:
+\[
+\epsilon_\text{guided} = \epsilon_\text{uncond} + w \cdot (\epsilon_\text{cond} - \epsilon_\text{uncond})
+\]
+where $w$ is the guidance weight (typically 7--15).
+
+\textbf{Effects of $w$:}
+\begin{itemize}
+  \item $w = 0$: Ignores prompt; high diversity, low relevance.
+  \item $w = 1$: No guidance (equivalent to standard conditioning).
+  \item $w > 1$: Amplifies prompt-following signal; sharper adherence to text but less diversity.
+  \item $w \gg 1$: Overly prompt-focused; may produce unrealistic artifacts.
+\end{itemize}
+
+\begin{notebox}
+Classifier-free guidance is a simple post-hoc technique that requires no external classifier and provides a principled way to trade off prompt fidelity vs. diversity.
+\end{notebox}
+\end{paperbox}
+
 
 \subsection{ControlNet, LoRA for images}
 
-% TODO
+\begin{paperbox}[title={ControlNet: Spatial Conditioning}]
+\textbf{ControlNet} (Zhang et al., 2023) adds explicit spatial control to a frozen diffusion model, enabling control via:
+\begin{itemize}
+  \item Depth maps (depth-guided generation).
+  \item Pose skeletons (pose-guided human generation).
+  \item Canny edge maps (sketch-to-image).
+  \item Segmentation masks (layout-guided generation).
+  \item Optical flow, normals, etc.
+\end{itemize}
+
+\textbf{Architecture:}
+\begin{enumerate}
+  \item Copy the U-Net encoder weights (frozen) to a trainable \textbf{control branch}.
+  \item Add \textbf{zero-convolution} layers to merge the control signal with the main U-Net.
+  \item Zero-convolutions initialize to zero-output, so training starts from the pretrained distribution.
+  \item Fine-tune only on (image, control map) pairs; the pretrained model's knowledge is preserved.
+\end{enumerate}
+
+\begin{intuitionbox}
+Zero-convolutions are crucial: they allow the control branch to be trained from scratch without disrupting the frozen model's pretrained weights. Gradual scaling from 0 ensures stable training.
+\end{intuitionbox}
+
+\textbf{Advantage:} Single frozen model + many lightweight ControlNets for different control types; users can combine multiple ControlNets for compound guidance.
+
+\begin{notebox}
+ControlNet demonstrates that spatial conditioning can be added to pretrained diffusion models with minimal retraining, enabling flexible control without full fine-tuning.
+\end{notebox}
+\end{paperbox}
+
+\begin{paperbox}[title={LoRA for Image Models}]
+\textbf{LoRA} (Low-Rank Adaptation, Hu et al., 2021) applies low-rank factorization to U-Net layers, enabling efficient fine-tuning.
+
+For image diffusion models, LoRA is applied to \textbf{cross-attention layers} in the U-Net. These layers compute:
+\[
+\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d}}\right) V
+\]
+
+Rather than fine-tuning the full weight matrices $W_Q, W_K, W_V$, we replace with:
+\[
+W \approx W_0 + \alpha A B^\top
+\]
+where $A \in \mathbb{R}^{d \times r}$ and $B \in \mathbb{R}^{d \times r}$ are learned, and $r \ll d$ is the rank (e.g., $r=4$ or $8$).
+
+\textbf{Advantages:}
+\begin{itemize}
+  \item \textbf{Parameter efficiency:} $\sim$100 MB per LoRA vs. full model retraining ($\sim$4 GB for Stable Diffusion).
+  \item \textbf{Fast training:} Fine-tune to a specific style or subject in hours on a single GPU.
+  \item \textbf{Composability:} Combine multiple LoRAs to blend styles and subjects.
+  \item \textbf{Preservation:} Base model weights frozen; LoRA only modifies the low-rank subspace.
+\end{itemize}
+
+\begin{intuitionbox}
+Cross-attention layers are where text embedding interacts with image features. Low-rank updates here efficiently steer generation toward a specific aesthetic or subject without retraining the entire model.
+\end{intuitionbox}
+\end{paperbox}
+
 
 \subsection{Flow matching}
 
-% TODO
+\begin{paperbox}[title={Flow Matching: Learning Vector Fields}]
+\textbf{Flow Matching} (Lipman et al., 2022) takes a different approach: instead of learning to denoise, directly learn a \textbf{vector field} $v_\theta(x_t, t)$ that transports a noise distribution to the data distribution along a path.
+
+\textbf{Core idea:}
+\begin{enumerate}
+  \item Define a path $x_t$ from noise ($t=0$) to data ($t=1$).
+  \item The vector field $v_\theta(x_t, t)$ should match the direction of the path: $\frac{dx_t}{dt} = v_\theta(x_t, t)$.
+  \item Train by minimizing the matching loss:
+  \[
+  \mathcal{L} = \mathbb{E}_{t, x_0, x_1} \left\| v_\theta(x_t, t) - \frac{dx_t}{dt} \right\|^2
+  \]
+\end{enumerate}
+
+\textbf{Straight-line paths:} The simplest choice is a straight line:
+\[
+x_t = (1-t) x_0 + t x_1, \quad \text{so} \quad \frac{dx_t}{dt} = x_1 - x_0
+\]
+This is constant, making training very simple: the network learns to predict a constant direction.
+
+\textbf{Advantages over DDPM/DDIM:}
+\begin{itemize}
+  \item \textbf{Simpler loss:} Direct matching vs. noise prediction; more stable.
+  \item \textbf{Straight paths:} Fewer steps needed at inference (fewer integration steps along a straight line).
+  \item \textbf{Flexibility:} Paths don't have to be straight; can use optimal transport for curved paths minimizing detours.
+  \item \textbf{Faster training:} No need to condition on noise schedules.
+\end{itemize}
+
+\begin{intuitionbox}
+Flow matching is intuitive: imagine pushing probability mass along a field of vectors from noise to data. Learning to predict the velocity field is simpler than denoising.
+\end{intuitionbox}
+\end{paperbox}
+
+\begin{paperbox}[title={Optimal Transport \& Flow Matching}]
+\textbf{Optimal Transport (OT) conditioning:} Instead of assigning data points arbitrarily to noise samples, use the Wasserstein distance to find the \textbf{straightest possible paths}.
+
+For a batch of data $\{x_1^{(i)}\}$ and noise samples $\{x_0^{(i)}\}$, OT finds a coupling that minimizes path curvature. This results in:
+\begin{itemize}
+  \item Straighter paths $\Rightarrow$ fewer integration steps.
+  \item More efficient training (less doubling-back or zigzagging).
+  \item Better sample quality.
+\end{itemize}
+
+Modern flow-matching models (e.g., Stable Diffusion 3, Flux) use OT-conditioned flow matching for improved speed and quality.
+
+\begin{notebox}
+\textbf{Comparison:} DDPM predicts noise; DDIM makes it deterministic; flow matching learns a vector field directly. Each approach refines the previous, trading off complexity for speed and simplicity.
+\end{notebox}
+\end{paperbox}
 

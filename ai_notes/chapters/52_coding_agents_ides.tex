@@ -92,6 +92,51 @@ Claude Agent SDK. Observations from direct inspection of live session JSONL logs
     footprint for agentic actions.
 \end{itemize}
 
+\subsection{Claude Code remote control}
+
+Claude Code's \textbf{remote control} feature allows an active terminal session to be
+accessed and continued from a web browser or mobile device, without moving any code or
+state to the cloud. Everything keeps running on the original machine; only the
+conversation stream is proxied to the remote client.
+
+\textbf{Workflow.}
+\begin{enumerate}
+  \item In the project directory, run \texttt{claude remote-control}. This starts a
+    new session and prints a URL. Pressing \texttt{Space} generates a QR code that
+    can be scanned to open the session directly in the Claude mobile app or browser.
+  \item To hand off a session already in progress, type \texttt{/remote-control}
+    inside the running session to get the same URL.
+  \item On the remote device, tap the \emph{environment} button and select the
+    machine by name. Multiple machines / sessions can be listed simultaneously.
+\end{enumerate}
+
+\textbf{Architecture properties.}
+\begin{itemize}
+  \item \textbf{Nothing moves to the cloud.} The agent's tools, MCP server
+    connections, file system access, and shell environment remain on the originating
+    machine. The remote device is a thin client that streams the conversation.
+  \item \textbf{Session continuity.} Typing on the mobile app updates the terminal
+    in real time and vice versa --- the shared state is the JSONL session log on the
+    local machine.
+  \item \textbf{Spawn mode.} From a remote device you can also create entirely new
+    Claude Code sessions on the connected machine, enabling you to launch parallel
+    agents without being physically present.
+  \item \textbf{Authentication.} The URL is tied to the Claude account; no
+    separate credentials are required beyond being logged into the same account on
+    the remote device.
+\end{itemize}
+
+\textbf{Persistent remote control.} By default, remote control must be explicitly
+enabled per session. In \texttt{/config} (Claude Code's configuration), enabling
+\texttt{remote-control} for all sessions removes this requirement.
+
+\begin{notebox}
+  Remote control is available on Mac, Team, and Enterprise plans (rolling out to
+  Pro/Max). It is a natural extension of the JSONL session log architecture: because
+  every turn is already serialised to disk, surfacing that stream to a second client
+  requires no additional server-side state.
+\end{notebox}
+
 \subsection{How AI IDEs use context (repo map, RAG)}
 
 % TODO

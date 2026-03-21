@@ -3,19 +3,148 @@
 
 \section{Tokenization \& Vocabulary}
 
+Tokenization is the process of breaking raw text into discrete units (tokens) that a neural network can process. The choice of tokenizer and vocabulary size directly affects model efficiency, inference speed, and multilingual capability. Modern LLMs use subword tokenization methods that balance character-level flexibility with word-level efficiency.
+
 \subsection{BPE, WordPiece, Unigram}
 
-% TODO
+\subsubsection*{Byte-Pair Encoding (BPE)}
+
+Byte-Pair Encoding is a data compression algorithm adapted for NLP by Sennrich et al.\ (2016). The algorithm works as follows:
+
+\begin{enumerate}
+  \item Start with a character-level vocabulary (all unique characters in the corpus).
+  \item Count the frequency of all adjacent token pairs.
+  \item Merge the most frequent pair into a new token.
+  \item Repeat until the vocabulary reaches a target size.
+\end{enumerate}
+
+The result is a set of subword units that emerge naturally from the data. For example, across words like \texttt{low}, \texttt{lower}, \texttt{newest}, the algorithm might produce common subwords: \texttt{low}, \texttt{er}, \texttt{new}, \texttt{est}.
+
+\begin{intuitionbox}
+BPE is \emph{greedy and deterministic}: the merge sequence is fixed by frequency counts, and there is no ambiguity in how text is tokenized. This makes it fast and reproducible, though it doesn't optimize for any downstream task.
+\end{intuitionbox}
+
+GPT-2 popularized \emph{byte-level BPE}, where the initial vocabulary is all 256 bytes rather than characters. This ensures no ``unknown token'' problem even for unusual Unicode sequences, since any byte sequence can be represented.
+
+\subsubsection*{WordPiece}
+
+WordPiece is used in BERT and similar models. It is similar to BPE but differs in the merge criterion:
+
+\begin{itemize}
+  \item BPE merges the \emph{most frequent} adjacent pair.
+  \item WordPiece merges the pair that \emph{maximizes language model likelihood}, i.e., maximizes how much the merge improves the model's ability to compress the corpus.
+\end{itemize}
+
+WordPiece marks continuation subwords with a \texttt{\#\#} prefix. For example, the word \texttt{playing} might tokenize as: \texttt{play} + \texttt{\#\#ing}. This notation makes it easy to reconstruct which tokens are word-initial versus continuations.
+
+\subsubsection*{Unigram Language Model Tokenizer}
+
+The Unigram approach inverts the merge strategy:
+
+\begin{enumerate}
+  \item Start with a \emph{very large} vocabulary (e.g., all character $n$-grams in the corpus).
+  \item Iteratively remove tokens that would increase corpus loss the least (i.e., remove tokens whose removal has minimal impact).
+  \item Repeat until vocabulary reaches the target size.
+\end{enumerate}
+
+Unlike BPE, Unigram tokenization is \emph{probabilistic}: multiple segmentations may exist, and the model assigns probabilities to each. During training, the segmentation that maximizes likelihood is preferred. This flexibility can be beneficial for capturing multiple valid decompositions.
+
+Unigram is a core component of SentencePiece (discussed below).
 
 \subsection{SentencePiece \& tiktoken}
 
-% TODO
+\subsubsection*{SentencePiece}
+
+SentencePiece is a language-agnostic tokenization library that treats input as a raw \emph{character stream}, including spaces. Spaces are represented as the special character \texttt{\char"2581} (U+2581, a lower one-eighth block used as a space placeholder). This design has major advantages:
+
+\begin{itemize}
+  \item \textbf{No preprocessing required:} Other tokenizers require language-specific pre-tokenization (splitting on spaces, lowercasing, etc.); SentencePiece handles raw text directly.
+  \item \textbf{Native CJK/RTL support:} Chinese, Japanese, Korean, Arabic, and other scripts are handled uniformly without special-casing.
+  \item \textbf{Reversibility:} Tokens can always be losslessly converted back to the original text.
+\end{itemize}
+
+SentencePiece internally implements either BPE or Unigram encoding. It is used in LLaMA, T5, XLNet, and many other modern models.
+
+\begin{notebox}
+SentencePiece's treatment of spaces as explicit tokens is crucial for multilingual fairness. A Thai sentence will have explicit space tokens, preventing the tokenizer from silently biasing toward languages that use word boundaries.
+\end{notebox}
+
+\subsubsection*{tiktoken}
+
+tiktoken is OpenAI's tokenizer for GPT-3.5 and GPT-4. It is implemented in Rust for speed and uses byte-level BPE internally.
+
+Key variants:
+\begin{itemize}
+  \item \texttt{cl100k\_base}: 100K tokens; used in GPT-4 and GPT-3.5-turbo.
+  \item \texttt{o200k\_base}: 200K tokens; used in newer OpenAI models.
+\end{itemize}
+
+The larger vocabularies (especially 200K) reduce token bloat on code and numerics compared to GPT-2's 50K vocab. This directly reduces API costs and increases effective context length for code-heavy inputs.
+
+\begin{warnbox}
+tiktoken is optimized for English and source code. Non-English text may still experience significant over-tokenization relative to English. See the section on multilingual tokenization below.
+\end{warnbox}
 
 \subsection{Vocabulary size trade-offs}
 
-% TODO
+Choosing vocabulary size is a fundamental trade-off:
+
+\begin{notebox}
+\begin{itemize}
+  \item \textbf{Larger vocabulary} (e.g., 100K): Fewer tokens per sentence $\Rightarrow$ shorter sequences, faster inference, lower API cost. \textbf{Downside:} Larger embedding parameter matrix.
+  \item \textbf{Smaller vocabulary} (e.g., 8K): Shorter embedding table. \textbf{Downside:} Longer sequences, higher inference cost, reduced effective context length.
+\end{itemize}
+\end{notebox}
+
+Most modern LLMs use a vocabulary in the range \textbf{32K–100K}, which balances these factors. The exact choice depends on:
+\begin{itemize}
+  \item Compute budget (smaller models may use smaller vocab).
+  \item Expected token density: models targeting code or multilingual data may use larger vocabularies.
+  \item Inference constraints (latency vs.\ memory).
+\end{itemize}
+
+\subsubsection*{Fertility}
+
+``Fertility'' measures the average number of tokens required to encode a word. English fertility in GPT-4 is approximately \textbf{1.3 tokens per word}—very efficient. However, fertility varies dramatically across languages (see the multilingual tokenization subsection below).
 
 \subsection{Multilingual tokenization}
 
-% TODO
+\subsubsection*{The over-tokenization problem}
+
+Tokenizers trained primarily on English corpora are \emph{extremely inefficient} for non-English text. A few concrete examples:
+
+\begin{itemize}
+  \item Arabic and Hindi text often require 3–5$\times$ more tokens than English for equivalent meaning.
+  \item LLaMA-1 (32K vocabulary, trained mostly on English-heavy data) tokenizes Thai approximately \textbf{10$\times$ worse} than English.
+  \item The same disparity applies to many low-resource languages, Cyrillic scripts, and CJK languages.
+\end{itemize}
+
+\begin{paperbox}[title={Why the fertility gap?}]
+Vocabulary imbalance is the root cause. If a tokenizer is trained on 90\% English + 10\% other languages, the English vocabulary will be optimized for common English subwords, but rare non-English patterns will fragment into many single-character tokens. A 32K vocab with heavy English bias dedicates perhaps 20K tokens to English subwords and only 12K to all other languages combined.
+\end{paperbox}
+
+\subsubsection*{Concrete impacts}
+
+Over-tokenization creates cascading problems:
+
+\begin{enumerate}
+  \item \textbf{Higher API costs:} Large language model APIs charge per token. Non-English users pay 3–10$\times$ more for the same semantic content.
+  \item \textbf{Shorter effective context:} If a 4K context window is filled with 1.3 tokens per word (English) vs.\ 13 tokens per word (Thai), the Thai user sees only 400 words vs.\ 3000 words for English users—a 7$\times$ gap.
+  \item \textbf{Degraded inference:} Longer sequences increase memory usage, cache misses, and latency.
+\end{enumerate}
+
+\subsubsection*{Solutions}
+
+Several approaches mitigate over-tokenization:
+
+\begin{itemize}
+  \item \textbf{Larger multilingual vocabulary:} Increase vocab from 32K to 128K–256K and train on a balanced multilingual corpus. This dedicates more tokens to non-English scripts.
+  \item \textbf{Script-specific tokens:} Add dedicated token ranges for Arabic, Devanagari, Cyrillic, CJK, etc. SentencePiece can be configured to do this.
+  \item \textbf{Balanced training data:} Ensure the tokenizer training corpus represents all target languages proportionally, not just English-heavy data.
+  \item \textbf{SentencePiece with multilingual corpora:} Use SentencePiece with a balanced training set to achieve more uniform fertility across languages.
+\end{itemize}
+
+\begin{intuitionbox}
+The optimal tokenizer for a multilingual system must be trained on multilingual data. A 100K vocab trained on 50\% English + 25\% CJK + 25\% other languages will achieve far better balance than a 100K vocab trained on 90\% English. This requires more engineering effort but yields significantly fairer and more efficient multilingual models.
+\end{intuitionbox}
 

@@ -17,5 +17,55 @@
 
 \subsection{Pretraining objectives (CLM, MLM, etc.)}
 
-% TODO
+\textbf{Causal Language Modelling (CLM).} The standard objective for autoregressive
+models: predict the next token given all preceding tokens. Loss is cross-entropy over
+the vocabulary at each position. Also called \emph{next-token prediction}. Used by
+GPT, LLaMA, Mistral, and most production LLMs.
+
+\textbf{Masked Language Modelling (MLM).} The BERT-family objective: randomly mask
+$\approx$15\% of input tokens and predict them from bidirectional context. Produces
+richer contextual representations but is not generative.
+
+\textbf{Span corruption (T5).} Replace random contiguous spans with a sentinel token
+and predict the replaced spans. Combines CLM and MLM; enables both encoding and
+generation.
+
+\textbf{The generality of CLM: beyond natural language.} The CLM objective is
+domain-agnostic --- it requires only a discrete token sequence with learnable
+structure. This has enabled foundation models trained on non-textual ``languages'':
+
+\begin{itemize}
+  \item \textbf{Code:} Codex, StarCoder, and DeepSeek-Coder treat source code as a
+    token sequence, learning syntax, APIs, and idioms from next-token prediction.
+
+  \item \textbf{Genomics (DNA/RNA):} EVO\,2 treats nucleotide sequences (A, T, G, C)
+    as a four-letter alphabet and applies CLM at single-nucleotide resolution.
+    The crucial insight: DNA from living organisms is an
+    \emph{evolutionary self-labelled dataset}. Because organisms must function to
+    survive and reproduce, every sequence in the training corpus has already been
+    filtered by billions of years of natural selection. Lethal mutations are absent;
+    conserved sequences are functionally critical. CLM thus receives an implicit
+    supervision signal at a scale and quality that no human-annotated dataset could
+    match. See Chapter~51.
+
+  \item \textbf{Protein sequences:} ESMFold and ProtTrans apply masked language
+    modelling to amino acid sequences. The evolutionary conservation signal is even
+    stronger at the protein level --- most protein positions are under stronger
+    selective pressure than individual nucleotides.
+
+  \item \textbf{Music and audio tokens:} discretised audio (EnCodec, SoundStream)
+    makes music generation a CLM task.
+
+  \item \textbf{Agent trajectories:} CLM on (observation, action) sequences models
+    agent behaviour offline --- the basis of Decision Transformer.
+\end{itemize}
+
+\begin{intuitionbox}
+  The CLM objective does not care \emph{what} the tokens represent, only that the
+  sequence has learnable structure. Any domain where the future is predictable from
+  the past --- code, DNA, protein, audio, actions --- is in principle a CLM problem.
+  The quality of implicit supervision depends on how strongly the domain's structure
+  constrains valid sequences: evolutionary selection pressure makes genomic CLM
+  arguably more information-dense per token than internet text.
+\end{intuitionbox}
 

@@ -60,6 +60,61 @@ The emerging consensus is that robust agent containment requires \emph{both}: al
 model behaviour (soft) to handle the common case, plus an out-of-process runtime
 layer (hard) as the enforcement backstop when soft controls are insufficient.
 
+\subsection{Training-time safety: data exclusion \& perplexity verification}
+
+A complementary safety strategy operates at training time rather than at inference
+time: deliberately \textbf{excluding dangerous data from the training corpus} so the
+model never acquires the capability in the first place.
+
+\textbf{Rationale.} Runtime filters and RLHF refusal training can suppress a
+capability the model already has, but suppression can be bypassed via jailbreaks or
+fine-tuning. If the dangerous capability was never learned, there is nothing to
+unsuppress.
+
+\textbf{Examples in practice.}
+\begin{itemize}
+  \item \textbf{EVO\,2 (biological foundation model):} all eukaryotic virus sequences
+    were excluded from the 9-trillion-base-pair training dataset, including pathogens
+    on the USDA Select Agents and Toxins list. The model was therefore never trained
+    to model the statistical patterns of dangerous viruses. See Chapter~51.
+  \item \textbf{CSAM prevention:} image generation models routinely filter known CSAM
+    hashes from training data as a non-negotiable pre-processing step.
+  \item \textbf{Weapons synthesis:} curated pretraining data pipelines for chemistry
+    LLMs may exclude detailed synthesis routes for scheduled substances.
+\end{itemize}
+
+\textbf{Verifying exclusion works: perplexity probing.}
+Removing data from a training corpus does not guarantee the model has no residual
+representation of the excluded domain (e.g.\ from related sequences or indirect
+references). \textbf{Perplexity probing} is the standard verification technique:
+
+\begin{enumerate}
+  \item Collect a held-out probe set of examples from the excluded domain (e.g.\ viral
+    genome sequences).
+  \item Feed these to the trained model and measure per-token perplexity.
+  \item \textbf{High perplexity} $\Rightarrow$ the model has no internal model of these
+    sequences; exclusion was effective.
+  \item \textbf{Low perplexity} $\Rightarrow$ the model has acquired representations of
+    the excluded domain via indirect exposure; exclusion was incomplete.
+\end{enumerate}
+
+For EVO\,2, viral sequence inputs produced high perplexity, and generation attempts
+produced biological gibberish --- confirming successful exclusion.
+
+\begin{notebox}
+  Perplexity probing is the dual of perplexity-based contamination detection in eval
+  methodology (Chapter~45): there, \emph{low} perplexity on benchmark examples reveals
+  the model \emph{has} seen them. Here, \emph{high} perplexity on excluded data
+  confirms the model \emph{has not}. Same technique, opposite direction.
+\end{notebox}
+
+\begin{warnbox}
+  Data exclusion is necessary but not sufficient. Releasing open-source training code
+  alongside a virus-excluded dataset still allows a malicious actor to obtain the
+  excluded data independently and fine-tune their own version of the model. The EVO\,2
+  authors acknowledge this dual-use risk explicitly.
+\end{warnbox}
+
 \textbf{Idempotency for agents:}
 An action is \emph{idempotent} if executing it twice produces the same result as
 executing it once. Critical when agents retry failed actions on real-world systems:

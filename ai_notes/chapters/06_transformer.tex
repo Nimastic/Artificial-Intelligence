@@ -5,17 +5,276 @@
 
 \subsection{Encoder-decoder vs decoder-only}
 
-% TODO
+The transformer architecture comes in three main flavors, each with different computational and representational properties. Understanding these distinctions is crucial for knowing why modern language models have converged on the decoder-only design.
+
+\begin{notebox}
+\textbf{The Original Transformer (Vaswani et al., 2017)}
+
+The encoder-decoder architecture was designed for sequence-to-sequence tasks like machine translation:
+\begin{itemize}
+  \item \textbf{Encoder:} A stack of self-attention layers processing the entire input bidirectionally. Each token can attend to all other tokens freely.
+  \item \textbf{Decoder:} A stack of self-attention layers with \textit{causal masking} (tokens can only attend to earlier positions) plus \textit{cross-attention} layers that attend to the encoder output.
+  \item The cross-attention mechanism acts as a ``bridge,'' allowing the decoder to query information from the complete encoded representation of the source sequence.
+\end{itemize}
+This design is symmetric and interpretable: the encoder builds a rich bidirectional representation, and the decoder autoregressively generates output while attending to it.
+\end{notebox}
+
+\begin{intuitionbox}
+Why the architectural split? In seq2seq tasks, the encoder's job is to \textit{understand} the full input (machine translation: read the entire source sentence before generating). The decoder's job is to \textit{generate} the output one token at a time, grounded in what the encoder learned. Separating these concerns kept each component focused.
+\end{intuitionbox}
+
+\begin{notebox}
+\textbf{Encoder-only Models (BERT, RoBERTa, etc.)}
+
+Encoder-only architectures drop the decoder entirely:
+\begin{itemize}
+  \item Fully bidirectional self-attention with no causal masking.
+  \item Trained with \textbf{Masked Language Modeling (MLM)}: randomly mask tokens and predict them from context.
+  \item Excels at \textbf{understanding tasks}: classification, named entity recognition, semantic similarity.
+  \item \textbf{Cannot generate} text (no autoregressive mechanism).
+  \item Parameters used efficiently for fine-tuning on downstream tasks.
+\end{itemize}
+BERT-style models dominated NLP from 2018–2022 for this reason: they are stateless (no generation), lightweight, and highly effective for supervised tasks.
+\end{notebox}
+
+\begin{notebox}
+\textbf{Decoder-only Models (GPT, Llama, Mistral, etc.)}
+
+A single stack of causal self-attention layers:
+\begin{itemize}
+  \item Fully autoregressive: generates one token at a time, attending only to previous tokens and itself.
+  \item Trained with \textbf{Causal Language Modeling (CLM)}: predict the next token given preceding tokens.
+  \item \textbf{Unified architecture:} the same forward pass handles both understanding (via prompt context) and generation.
+  \item Scales exceptionally well with compute and data.
+  \item The current dominant paradigm for language models.
+\end{itemize}
+Decoder-only models can perform understanding tasks too—through \textit{in-context learning} and instruction tuning—without any architectural change.
+\end{notebox}
+
+\begin{warnbox}
+\textbf{Why Decoder-only Won}
+
+Three factors drove the shift from encoder-decoder and encoder-only to decoder-only:
+
+\begin{enumerate}
+  \item \textbf{Parameter efficiency:} Decoder-only models achieve comparable or superior performance to encoder-decoders with fewer parameters (no redundant encoder + decoder). For the same parameter budget, you get a better model.
+
+  \item \textbf{Scaling properties:} Decoder-only models scale more predictably with additional compute. Experiments showed that decoder-only scaling laws are cleaner and performance improvements are more reliable as you add data and parameters.
+
+  \item \textbf{Versatility:} A single decoder-only model can be instruction-tuned to perform classification, generation, reasoning, and other tasks—without architectural retraining. Encoder-decoder required task-specific tuning.
+
+  \item \textbf{Simplicity:} One stack of layers, one objective, one inference pattern. Fewer moving parts = fewer bugs, easier to optimize, easier to deploy at scale.
+\end{enumerate}
+
+The win became clear around 2022–2023: GPT-3, InstructGPT, and subsequent models demonstrated that you could build a general-purpose AI system from a single decoder-only stack.
+\end{warnbox}
+
+\begin{paperbox}[title={Comparison: Encoder, Decoder, and Encoder-Decoder}]
+\begin{center}
+\small
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Property} & \textbf{Encoder-only} & \textbf{Decoder-only} & \textbf{Encoder-decoder} \\
+\hline
+Self-attention masking & Bidirectional & Causal & Bidirectional + Causal \\
+\hline
+Primary objective & MLM & CLM & CLM + cross-attn \\
+\hline
+Can generate text? & No & Yes & Yes \\
+\hline
+Can understand context? & Yes & Yes & Yes \\
+\hline
+Parameter count (est.) & Base & Base & Base + Base \\
+\hline
+Training stability & High & High & Moderate \\
+\hline
+Dominant use (2025) & Semantic tasks & General LLMs & Machine translation \\
+\hline
+Instruction tuning? & Limited & Excellent & Good \\
+\hline
+\end{tabular}
+\end{center}
+\end{paperbox}
 
 \subsection{Multi-head self-attention}
 
-% TODO
+The self-attention mechanism is the core routing component of the transformer—it determines which tokens communicate with which. However, the detailed mechanics of attention (the softmax-weighted sum, the Q/K/V projections, the scaled dot-product) are covered in depth in \textbf{Chapter~7 (Attention Mechanisms)}.
+
+\begin{notebox}
+For this chapter, the key intuition is:
+\begin{itemize}
+  \item \textbf{Self-attention acts as a dynamic router:} each token computes relevance scores (via query-key dot products) to all other tokens and aggregates their values accordingly.
+  \item \textbf{Multi-head attention} runs several independent attention mechanisms in parallel, each with different learned projections (Q/K/V). This allows the model to attend to different \textit{subspaces} of the representation simultaneously—e.g., one head might focus on syntax, another on semantics.
+  \item The outputs of all heads are concatenated and projected back to the model dimension $d_{\text{model}}$.
+  \item Multi-head attention has $O(n^2)$ complexity in sequence length $n$, which is the main computational bottleneck in transformers.
+\end{itemize}
+\end{notebox}
+
+\begin{intuitionbox}
+Think of multi-head attention as a form of \textbf{learned, dynamic routing}: instead of predefined rules for how information flows, the model learns to compute routes (attention weights) on the fly, and different heads specialize in different types of routing patterns.
+\end{intuitionbox}
 
 \subsection{Feed-forward sublayer}
 
-% TODO
+Each transformer layer alternates between self-attention and a feed-forward network (FFN). The FFN processes each token independently and is responsible for much of the model's parameter count and capacity.
+
+\begin{notebox}
+\textbf{Architecture}
+
+The vanilla feed-forward sublayer is a two-layer MLP:
+\[
+  \text{FFN}(x) = W_2 \cdot \text{activation}(W_1 \cdot x + b_1) + b_2
+\]
+where $x$ is the token representation ($d_{\text{model}}$ dimensions), $W_1$ projects to a higher-dimensional space (expansion), and $W_2$ projects back down.
+
+\begin{itemize}
+  \item \textbf{Expansion ratio:} Traditionally $4\times$ (GPT-2, BERT use $d_{\text{model}} \to 4 \cdot d_{\text{model}} \to d_{\text{model}}$).
+  \item \textbf{Activation function:} Originally ReLU; modern LLMs predominantly use \textbf{SwiGLU} (a gated variant of GELU).
+\end{itemize}
+\end{notebox}
+
+\begin{notebox}
+\textbf{SwiGLU and Modern Activations}
+
+\textbf{SwiGLU} (Shazeer, 2020) is a gated linear unit that outperforms simpler activations:
+\[
+  \text{SwiGLU}(x, W, V, b, c) = \text{Swish}(x W + b) \odot (x V + c)
+\]
+where $\odot$ is element-wise multiplication (gating), and $\text{Swish}(x) = x \cdot \sigma(x)$ (sigmoid-weighted $x$).
+
+Key differences from vanilla FFN:
+\begin{itemize}
+  \item \textbf{Three weight matrices:} $W$ (up-projection), $V$ (gate-projection), and a down-projection. This is $1.5\times$ more parameters than vanilla two-layer FFN.
+  \item To maintain the same parameter budget, the hidden dimension is typically scaled by $\tfrac{2}{3}$, so expansion becomes $d_{\text{model}} \to \tfrac{8}{3} \cdot d_{\text{model}} \to d_{\text{model}}$.
+  \item \textbf{Gating mechanism:} The gate $(xV+c)$ learns to selectively suppress or amplify different learned features, improving expressivity.
+  \item Used in PaLM, LLaMA, Mistral, and most modern large language models.
+\end{itemize}
+
+\begin{warnbox}
+\textbf{Empirical result:} SwiGLU-based models train faster and reach higher quality than ReLU-based models at the same parameter count. This is one reason modern models use gated activations.
+\end{warnbox}
+\end{notebox}
+
+\begin{paperbox}[title={Where is Factual Knowledge Stored?}]
+Mechanistic interpretability work (Rank-One Model Editing, ROME; Meng et al., 2022) provides strong evidence that \textbf{factual associations are localized in the MLP layers}, particularly in the feed-forward networks of middle-to-upper layers.
+
+When researchers edited parameters in the FFN layers, they could surgically change stored facts (e.g., ``Eiffel Tower is in Paris'' to ``Eiffel Tower is in Rome'') without affecting other capabilities. Self-attention layers handle routing and composition; MLPs handle storage.
+
+This suggests the FFN's role is not just nonlinearity, but a form of distributed memory.
+\end{paperbox}
+
+\begin{notebox}
+\textbf{Parameter Count}
+
+For a single transformer layer with FFN dimension $d_{\text{ff}} = 4 \cdot d_{\text{model}}$ (vanilla):
+\begin{align}
+  \text{Self-attention params} &\approx 12 \cdot d_{\text{model}}^2 \quad \text{(3 projections for Q/K/V, output proj)} \\
+  \text{FFN params} &= 2 \cdot d_{\text{model}} \cdot d_{\text{ff}} = 8 \cdot d_{\text{model}}^2
+\end{align}
+
+\textbf{The FFN is the parameter bottleneck:} roughly $\mathbf{2/3}$ of parameters in a transformer layer reside in the feed-forward network, not in attention. This is why efficient inference (KV-cache optimization, sparsity, quantization) must also optimize the FFN.
+\end{notebox}
 
 \subsection{Layer norm \& residual stream}
 
-% TODO
+The glue binding transformer layers together is residual connections and layer normalization. These components enable very deep networks and are central to the modern understanding of how transformers compute.
 
+\begin{notebox}
+\textbf{Residual Connections}
+
+Each sublayer (self-attention, feed-forward) adds its output to its input:
+\[
+  x_{l+1} = x_l + \text{Sublayer}(x_l)
+\]
+
+\textbf{Gradient flow:} In deep networks, gradients can vanish or explode as they backpropagate. Residual connections provide a direct path for gradients to flow: $\frac{\partial \text{Loss}}{\partial x_l} = \frac{\partial \text{Loss}}{\partial x_{l+1}} \left(1 + \frac{\partial \text{Sublayer}}{\partial x_l}\right)$.
+
+The ``$+1$'' term ensures gradients do not decay to zero even if the sublayer's Jacobian is small. This is why residuals enable 100+ layer networks.
+\end{notebox}
+
+\begin{intuitionbox}
+\textbf{The Residual Stream View}
+
+A powerful conceptual framework (developed in Anthropic's mechanistic interpretability / circuits program) views transformer computation as iterative updates to a shared \textbf{residual stream}:
+
+\begin{itemize}
+  \item The residual stream is the sequence of hidden states flowing through the network: $x_0 \to x_1 \to \cdots \to x_L$.
+  \item Each attention head and each MLP layer \textit{reads} from the stream, computes some function, and \textit{adds} its contribution back to the stream.
+  \item No information is destroyed; each layer is additive. The final output is the sum of all accumulated contributions.
+  \item This view makes it easier to understand compositionality: features can be combined additively throughout the network.
+\end{itemize}
+
+This perspective has proven invaluable for interpretability: it predicts which layers specialize in which tasks, which heads attend to which types of tokens, etc.
+\end{intuitionbox}
+
+\begin{notebox}
+\textbf{Layer Normalization}
+
+Layer normalization (LayerNorm) normalizes activations within each token's representation across the feature dimension:
+\[
+  \text{LayerNorm}(x) = \gamma \odot \frac{x - \mu}{\sqrt{\sigma^2 + \epsilon}} + \beta
+\]
+where $\mu$ and $\sigma^2$ are computed per token (not per batch), and $\gamma, \beta$ are learned affine parameters.
+
+\begin{itemize}
+  \item \textbf{No batch statistics:} Unlike batch normalization, LayerNorm does not depend on batch size or composition. This is crucial for LLMs trained with variable-length sequences and deployed with different batch sizes.
+  \item \textbf{Prevents internal covariate shift:} Keeps the distribution of activations stable across layers, reducing training instability.
+\end{itemize}
+\end{notebox}
+
+\begin{notebox}
+\textbf{Pre-norm vs Post-norm}
+
+\textbf{Post-norm} (original transformer, Vaswani 2017):
+\[
+  x_{l+1} = \text{LayerNorm}(x_l + \text{Sublayer}(x_l))
+\]
+Applies LayerNorm \textit{after} the residual addition. This normalizes the next layer's input.
+
+\textbf{Pre-norm} (modern practice):
+\[
+  x_{l+1} = x_l + \text{Sublayer}(\text{LayerNorm}(x_l))
+\]
+Applies LayerNorm \textit{before} the sublayer. Normalizes the input to each sublayer.
+
+\begin{warnbox}
+\textbf{Pre-norm is superior for deep networks:}
+\begin{itemize}
+  \item More stable training: gradients flow more reliably.
+  \item Allows deeper networks (100+ layers) without divergence.
+  \item Post-norm networks degrade in stability as depth increases.
+\end{itemize}
+Modern LLMs (GPT-3, LLaMA, Mistral) use pre-norm exclusively.
+\end{warnbox}
+\end{notebox}
+
+\begin{notebox}
+\textbf{RMSNorm}
+
+A recent simplification: \textbf{Root Mean Square Layer Norm} (Zhang \& Sennrich, 2019) removes mean centering:
+\[
+  \text{RMSNorm}(x) = \gamma \odot \frac{x}{\sqrt{\frac{1}{d}\sum_{i=1}^d x_i^2 + \epsilon}}
+\]
+
+\begin{itemize}
+  \item Simpler to compute (one pass instead of two for mean and variance).
+  \item \textbf{Empirically equivalent:} achieves the same training stability and final performance as LayerNorm.
+  \item \textbf{Faster inference:} fewer arithmetic operations per token.
+  \item Used in LLaMA, Mistral, and other modern efficient models.
+\end{itemize}
+
+\begin{intuitionbox}
+RMSNorm is a good example of how modern LLMs optimize for practical efficiency: the simplification loses some theoretical justification (mean centering) but gains speed without sacrificing quality.
+\end{intuitionbox}
+\end{notebox}
+
+\begin{paperbox}[title={Key Takeaway: Depth Through Residuals and Normalization}]
+Modern transformers can be 100+ layers deep because of two complementary techniques:
+
+\begin{enumerate}
+  \item \textbf{Residual connections:} enable gradients to flow directly, preventing vanishing gradients.
+  \item \textbf{Pre-norm LayerNorm (or RMSNorm):} stabilizes activation distributions, allowing stable training of very deep networks.
+\end{enumerate}
+
+Together, these simple techniques unlock the ability to scale to enormous models. Without them, gradients would explode or vanish, and training would fail.
+\end{paperbox}

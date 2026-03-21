@@ -3,19 +3,355 @@
 
 \section{Embodied AI \& Simulation}
 
+\subsection{SLAM \& robot perception}
+
+\begin{intuitionbox}
+Simultaneous Localization And Mapping (SLAM) is the classic chicken-and-egg problem: a robot must build a map of an unknown environment while simultaneously tracking its own location within that map. These two tasks are deeply intertwined — you need to know where you are to map accurately, and you need a good map to localize.
+\end{intuitionbox}
+
+\subsubsection{The two interleaved problems}
+
+SLAM decomposes into two core problems:
+\begin{enumerate}
+\item \textbf{Localization}: Given a map, where am I? Solved with particle filters or Kalman filters.
+\item \textbf{Mapping}: Given my location, what does the environment look like?
+\end{enumerate}
+
+\subsubsection{EKF-SLAM}
+
+Extended Kalman Filter SLAM maintains a Gaussian belief over a joint state vector: $[\text{robot pose}, \text{landmark positions}]$. The state grows with each observed landmark, leading to $O(n^2)$ update cost where $n$ is the number of landmarks. A key challenge is \emph{data association}: deciding which observed feature corresponds to which landmark in the map.
+
+\subsubsection{Particle filter SLAM (FastSLAM)}
+
+Represents the belief as a distribution over robot trajectories; each particle maintains its own map of landmarks. This approach is more robust to non-Gaussianity than EKF-SLAM and achieves $O(n \log n)$ complexity per update.
+
+\subsubsection{Graph-SLAM and pose graph optimisation}
+
+Modern SLAM formulates the problem as a graph of robot poses connected by relative constraints (odometry measurements and loop closures). The goal is to find the most likely configuration via non-linear least squares, solved with tools like \texttt{g2o} and \texttt{GTSAM}.
+
+\begin{notebox}
+\textbf{Loop closure} occurs when the robot revisits a known location. This is where accumulated drift is corrected. The challenge is the place recognition problem: identifying that current observations match a previously visited location. Techniques include bag-of-words, NetVLAD, and DBoW descriptors.
+\end{notebox}
+
+\subsubsection{Sensor modalities}
+
+\begin{itemize}
+\item \textbf{LiDAR SLAM} (e.g. Velodyne): directly produces 3D point clouds; robust to lighting conditions.
+\item \textbf{Visual SLAM} (e.g. ORB-SLAM, COLMAP): uses cameras; cheaper hardware but more challenging in low light; sensitive to motion blur.
+\item \textbf{Dense vs.\ sparse}: sparse methods track keypoints; dense methods build full volumetric models.
+\end{itemize}
+
+\subsubsection{Modern deep SLAM}
+
+Recent systems (NICE-SLAM, iMAP) use neural representations like Neural Radiance Fields (NeRF) or neural implicit maps as the underlying map representation, combining classical SLAM geometry with learnable dense scene models.
+
 \subsection{Sim-to-real transfer}
 
-% TODO
+\begin{intuitionbox}
+The sim-to-real gap is one of the hardest problems in robotics. Training in simulation is fast and cheap, but real robots face physics inaccuracies, sensor noise, appearance differences, and latency that don't exist in the simulator.
+\end{intuitionbox}
+
+\subsubsection{Sources of the gap}
+
+The sim-to-real mismatch includes:
+\begin{itemize}
+\item Physics: friction coefficients, mass, contact dynamics, compliance of actuators
+\item Sensors: camera noise, latency, quantisation in encoders
+\item Appearance: domain shift between photorealistic rendering and real images
+\item Control: latency, actuator saturation, backlash
+\end{itemize}
+
+\subsubsection{Domain randomisation}
+
+Train the policy in many varied simulation conditions: random friction coefficients, masses, lighting, textures, camera parameters. The real world appears as just another instance of the randomised distribution. This worked for OpenAI's Dactyl (multi-fingered robotic hand solving a Rubik's cube).
+
+\subsubsection{Domain adaptation}
+
+Rather than randomisation, adapt the model's learned representation from simulation to real using adversarial training or style transfer. The real robot provides additional data to refine the simulator's parameters.
+
+\subsubsection{System identification}
+
+Measure real robot dynamics (forward kinematics, joint compliance, motor characteristics) and tune simulator parameters to match real hardware. This narrows the gap at the physics level.
+
+\subsubsection{Real-to-sim}
+
+Conversely, capture real sensor data and use it to build a more faithful simulation: photo-realistic rendering from real images, real trajectory data for dynamics validation.
 
 \subsection{RT-2, PaLM-E, embodied LLMs}
 
-% TODO
+\begin{intuitionbox}
+The key insight is that large language models and vision-language models trained on the internet contain rich semantic knowledge. By fine-tuning these models on robot demonstrations and grounding them in actions, we get data-efficient robot learning without training from scratch.
+\end{intuitionbox}
+
+\subsubsection{PaLM-E (Google 2023)}
+
+A multimodal language model that consumes continuous sensor streams (images, robot state) as inputs alongside text. Trained jointly on:
+\begin{itemize}
+\item Internet-scale text corpora
+\item Embodied robot manipulation data
+\end{itemize}
+
+Can plan multi-step manipulation tasks from natural language instructions and reason over sensor observations.
+
+\subsubsection{RT-2: Robotics Transformer 2 (Google DeepMind 2023)}
+
+Fine-tuned PaLI (a vision-language model) to output robot actions directly as discretised text tokens. Key insight: web-trained knowledge transfers to robot generalisation — the model can pick up objects it has never been trained on, if told the object's name.
+
+\subsubsection{Vision-Language-Action (VLA) models}
+
+The emerging paradigm: take a large vision-language model, fine-tune it on demonstrations where the model outputs robot actions (as text tokens or continuous vectors). RT-2 is the canonical example. OpenVLA is an open-source alternative.
+
+\begin{paperbox}[title={Why VLAs work}]
+Web-scale pretraining gives the model semantic understanding of objects, spatial relationships, and natural language. Fine-tuning on even modest amounts of robot data (thousands of trajectories) grounds this knowledge in actions — the model learns to convert ``pick up the red cube'' into motor commands. Far more sample-efficient than learning from scratch.
+\end{paperbox}
+
+\subsection{Project GR00T \& foundation models for robotics}
+
+\begin{intuitionbox}
+Foundation models are reshaping robotics. Instead of building separate controllers for each task and robot type, the goal is a single large model trained on diverse robot and human data, then fine-tuned or prompted for specific embodiments and tasks.
+\end{intuitionbox}
+
+\subsubsection{NVIDIA Project GR00T (2024)}
+
+A framework for building foundation models for humanoid robots, announced by NVIDIA in 2024. Not a single monolithic model, but rather a pipeline and pretrained weights.
+
+\subsubsection{Groot N1}
+
+The first release: a general-purpose humanoid robot foundation model. Outputs joint positions or torques for humanoid bodies. Trained on:
+\begin{itemize}
+\item Diverse robot demonstrations (from multiple robot platforms when possible)
+\item Synthetic data from simulation (Isaac Lab)
+\item Human motion video (to provide motion priors, without requiring the model to explicitly control a body)
+\end{itemize}
+
+\subsubsection{Key technical ideas}
+
+\begin{itemize}
+\item \textbf{Leverage simulation}: use GPU-accelerated environments (Isaac Lab) to generate massive synthetic training data for pretraining.
+\item \textbf{Human motion priors}: incorporate human video to teach natural motion, even though humans and robots differ in kinematics.
+\item \textbf{Hardware fine-tuning}: adapt the foundation model to specific robot hardware and tasks via further training.
+\item \textbf{Multi-embodiment pretraining}: if available, train on diverse robot platforms; enables generalisation.
+\end{itemize}
+
+\subsubsection{NVIDIA Isaac platform}
+
+The underlying simulation ecosystem consists of:
+\begin{itemize}
+\item \textbf{Isaac Gym}: GPU-accelerated physics, multi-stage simulation pipeline, used for large-scale RL training.
+\item \textbf{Isaac Lab}: high-level learning framework built on Isaac Gym; supports curriculum learning, task scheduling, and more.
+\item \textbf{Isaac Sim}: photorealistic rendering and sensor simulation (cameras, LiDAR) for bridging to real robots.
+\end{itemize}
+
+\subsubsection{The ``GR00T moment'' for robotics}
+
+NVIDIA argues that GR00T represents a paradigm shift: foundation models for robotics are what ImageNet and CNN pretraining were for computer vision — a common foundation that dramatically lowers the barrier to building capable systems. Instead of each team training from scratch, they build atop shared, large-scale pretrained representations.
+
+\begin{warnbox}
+\textbf{Physical AI}: NVIDIA's term for AI that operates in and interacts with the physical world (forces, contact, dynamics), distinct from ``digital AI'' (language, images, text). Requires understanding physics deeply — not just visual recognition.
+\end{warnbox}
 
 \subsection{Simulation environments (Isaac, MuJoCo)}
 
-% TODO
+\subsubsection{MuJoCo (Multi-Joint dynamics with Contact)}
+
+The standard open-source physics engine for robot learning:
+\begin{itemize}
+\item Very fast and accurate continuous control simulation
+\item Benchmark choice for RL on locomotion and manipulation
+\item Acquired by DeepMind; now fully open-source with active community
+\item GPU support in recent versions
+\end{itemize}
+
+\subsubsection{Isaac Gym and Isaac Lab}
+
+NVIDIA's ecosystem, with GPU-accelerated physics and RL training:
+\begin{itemize}
+\item Simulate thousands of robot instances in parallel on a single GPU
+\item 100–1000× speedup over CPU-based simulators like MuJoCo on CPU
+\item Used for large-scale pretraining of foundation models (e.g. GR00T)
+\item Isaac Lab provides high-level APIs for task definition, curriculum learning, and integration with PyTorch
+\end{itemize}
+
+\subsubsection{Habitat (Meta AI)}
+
+Photorealistic indoor navigation simulation:
+\begin{itemize}
+\item Built on real-world 3D scans from Matterport
+\item Focused on embodied vision and navigation tasks
+\item Used for PointNav, ObjectNav research
+\end{itemize}
+
+\subsubsection{AI2-THOR}
+
+Interactive household simulator for robotic manipulation and object interaction:
+\begin{itemize}
+\item Support for articulated objects (doors, drawers, fridges)
+\item Realistic physics and visual rendering
+\end{itemize}
+
+\subsubsection{PyBullet}
+
+Open-source physics engine; widely used in research and teaching. Slower than MuJoCo and Isaac, but easy to use and flexible.
 
 \subsection{Manipulation \& locomotion tasks}
 
-% TODO
+\subsubsection{Manipulation}
 
+Core robotic manipulation challenges:
+\begin{itemize}
+\item \textbf{Pick-and-place}: grasping an object and moving it to a target location
+\item \textbf{Grasping}: computing stable grasp points; parallel-jaw grippers vs. multi-finger dexterous hands
+\item \textbf{Assembly}: precise insertion and alignment (pegs in holes, mating parts)
+\item \textbf{Tool use}: using objects as tools to accomplish goals
+\item \textbf{Deformable objects}: handling cloth, rope, liquid — non-rigid dynamics
+\end{itemize}
+
+Key research challenges: predicting contact forces, planning grasps on novel objects, handling partial observability.
+
+\subsubsection{Dexterous manipulation}
+
+OpenAI's Dactyl (2019) achieved multi-fingered manipulation of a Rubik's cube in the real world. Key ingredients:
+\begin{itemize}
+\item Domain randomisation at extreme scale (50,000+ simulation variations)
+\item Massive compute for training in simulation (thousands of GPU hours)
+\item Careful system identification to narrow the sim-to-real gap
+\end{itemize}
+
+\subsubsection{Locomotion}
+
+Mobile robot locomotion at scale:
+\begin{itemize}
+\item \textbf{Bipedal}: ATLAS (Boston Dynamics), Digit (Agility Robotics) — balancing on two legs
+\item \textbf{Quadruped}: Spot (Boston Dynamics), ANYmal (ANYbotics), Unitree — four-legged platforms achieving dynamic running and climbing
+\item \textbf{Agile locomotion}: MIT Cheetah, Boston Dynamics Spot can now do parkour — jumping over obstacles, climbing stairs
+\end{itemize}
+
+Deep reinforcement learning has been key to achieving highly agile, energy-efficient locomotion policies by training end-to-end in simulation.
+
+\subsubsection{Whole-body control}
+
+An emerging challenge: coordinating both base locomotion (walking/running) and arm manipulation simultaneously. Requires:
+\begin{itemize}
+\item Larger models to output more degrees of freedom
+\item Better simulators to capture contact-rich dynamics
+\item Curriculum learning (start with stationary manipulation, then add locomotion)
+\end{itemize}
+
+Enabled by recent advances in both simulation fidelity and model scale.
+
+\subsection{Humanoid loco-manipulation \& VLA models}
+
+\begin{intuitionbox}
+Locomotion for humanoids is largely solved by large-scale simulation. The hard unsolved problem is \emph{combining} locomotion with dexterous manipulation \emph{and} language-grounded intelligence in a single, unified controller. A full humanoid such as the Unitree G1 has $\sim$43 degrees of freedom (DoF) — far more than the $\sim$18 DoF tabletop manipulation setting that most current VLA models target.
+\end{intuitionbox}
+
+\subsubsection{The $\pi_0$ VLA paradigm}
+
+Most contemporary vision-language-action models follow a common two-stage recipe:
+\begin{enumerate}
+  \item \textbf{Pre-training}: a large vision-language model (VLM) backbone is trained on internet-scale multimodal data to acquire semantic and perceptual knowledge.
+  \item \textbf{Post-training / action alignment}: a continuous \emph{action expert} head (typically trained with a flow-matching loss) is appended and trained on in-domain robot demonstrations to align the model's representations with motor commands.
+\end{enumerate}
+The $\pi_0$ model (Physical Intelligence) and its successors $\pi_{0.5}$ and $\pi_{0.6}$ established this as the standard recipe. The action expert produces smooth, continuous trajectories via flow matching rather than discretised token prediction.
+
+\subsubsection{The robot learning data pyramid}
+
+\begin{itemize}
+  \item \textbf{Internet video} (bottom): vast scale, rich semantics, but no action labels and a large viewpoint domain gap.
+  \item \textbf{Simulation data} (middle): unlimited episodes for locomotion; large physics and visual fidelity gap for fine-grained manipulation.
+  \item \textbf{Real-world teleoperation data} (top): highest quality for manipulation; expensive to collect at scale (robot hardware, operator time).
+\end{itemize}
+
+A key research question is whether cheaper data tiers can substitute for expensive teleoperation data.
+
+\subsubsection{Egocentric human video as a pretraining source}
+
+Rather than relying on internet video (large viewpoint gap) or simulation (physics gap), the \textbf{Size Zero} project (Wang lab, USC) uses \emph{egocentric human video} for VLM pretraining:
+
+\begin{itemize}
+  \item \textbf{Viewpoint alignment}: an egocentric camera worn on the head sees the world from roughly the same perspective as a humanoid's head cameras, dramatically reducing the observation-space domain gap.
+  \item \textbf{Action-space alignment}: human hands share morphology with dexterous robot hands. Using 3D hand-tracking as the action representation gives a natural common action vocabulary without robot-specific action labels.
+  \item \textbf{Scalability}: a simple four-camera stereo cap (two front-facing, two down-facing cameras, connected to a Raspberry Pi) captures $\sim$5 hours of data per person per day without interrupting normal work. At $\sim$20 devices, the project collected over 1{,}000 hours with a target of 10{,}000 hours.
+\end{itemize}
+
+The action representation used is \textbf{48-dimensional}: 9-DoF wrist pose + 3 fingertip positions $\times$ 5 fingers = 24 DoF per hand. During pretraining the model learns to predict \emph{discrete action tokens} representing this hand motion, obtained by compressing the continuous 48-D vector with a fine-tuned \textbf{FAST tokenizer} (DCT $\to$ quantisation $\to$ BPE), reducing it to 13 tokens.
+
+\begin{notebox}
+\textbf{Egocentric data sets}: the Eagle dataset (89 hrs, captured with Apple Vision Pro) was used for the Size Zero pretraining experiments. Down-facing cameras in the custom cap additionally enable whole-body pose estimation via SAM-3D, recovering leg and torso motion even outside the camera's field of view.
+\end{notebox}
+
+\subsubsection{Two-stage training for humanoid VLAs}
+
+\textbf{Stage 1 — VLM pretraining on egocentric data.}
+The VLM backbone is trained on egocentric video + text descriptions with a discrete action-token prediction objective (next-token prediction on hand-motion tokens). This is analogous to causal language modelling but on motor sequences rather than text.
+
+\textbf{Stage 2 — Action expert post-training on robot teleoperation data.}
+The pre-trained VLM backbone is \emph{frozen}. A separate action expert module is conditioned on the frozen VLM's feature representations and trained with a \textbf{flow matching} objective on 30 hrs of in-domain humanoid teleoperation data (Humanoid Everyday dataset; see below).
+
+\subsubsection{MM-DiT action head}
+
+A key architectural innovation is replacing the \emph{naïve DiT head} used by most VLA models with an \textbf{MM-DiT (multi-modal diffusion transformer) head}:
+
+\begin{itemize}
+  \item \textbf{Naïve DiT}: VLM features and action tokens are mixed only at the very end of the DiT module (late fusion). The self-attention operates only over action tokens.
+  \item \textbf{MM-DiT}: VLM feature tokens and action tokens are \emph{concatenated at the beginning} of the module, and cross-attention is converted to \textbf{joint (full) self-attention} over the combined sequence. This performs channel-wise and spatial feature mixing throughout the entire depth of the module, dramatically improving alignment between visual context and action generation.
+\end{itemize}
+
+\begin{paperbox}[title={MM-DiT head recommendation}]
+MM-DiT heads are the standard in video generation (Stable Diffusion 3, Flux) but were not widely used in VLA models before Size Zero. The ablation shows a large performance gain over the naïve DiT baseline. If you are working on VLA models, use the MM-DiT head.
+\end{paperbox}
+
+\subsubsection{Whole-body controller deployment}
+
+At inference time:
+\begin{itemize}
+  \item \textbf{Upper body} (arms + hands): the VLA outputs joint targets; a \emph{multi-target inverse kinematics (IK)} solver converts wrist-pose predictions into full arm joint angles.
+  \item \textbf{Lower body} (legs + base): an AMO-style \emph{reinforcement-learning locomotion policy} handles walking and balance, receiving high-level velocity commands from the VLA output simultaneously.
+\end{itemize}
+
+For smooth real-time execution see the action-chunking discussion in Chapter~15 (Inference).
+
+\subsubsection{Results: Size Zero vs.\ baselines}
+
+Evaluated on eight whole-body loco-manipulation tasks on a Unitree G1 humanoid:
+\begin{itemize}
+  \item \textbf{+40\% over Gr00T N1.6} (previous state-of-the-art) on task success rate.
+  \item \textbf{10$\times$ less pretraining data}: Size Zero uses $\sim$800 hrs of egocentric video; Gr00T N1.6 uses $>$10{,}000 hrs.
+  \item VLMs consistently outperform imitation-learning policies (Diffusion Policy, DP3) confirming the value of large-scale pretraining.
+\end{itemize}
+
+\subsubsection{Humanoid Everyday dataset}
+
+A companion data paper (\textit{Humanoid Everyday}, ICRA/IROS 2026) features:
+\begin{itemize}
+  \item 10{,}000+ trajectories, 3 million frames, 260 tasks across Unitree G1 and H1.
+  \item Diverse coverage including bipedal loco-manipulation and human-robot interaction.
+  \item High-frequency 30 Hz multi-modal streams: RGB, depth, LiDAR, joint states, tactile, odometry, IMU, and hand actions.
+  \item Control loop latency reduced from 500 ms to 20 ms via I/O offloading.
+  \item Cloud evaluation platform: users upload policies; the lab evaluates on real hardware and returns success rates (no physical robot required).
+\end{itemize}
+
+\subsection{HumanDex: IMU-based whole-body teleoperation}
+
+\begin{intuitionbox}
+VR-based teleoperation requires expensive headsets and constrains the operator. An IMU (inertial measurement unit) motion-tracker system can achieve comparable data quality with a lighter-weight, more portable setup that does not limit the operator's mobility or productivity.
+\end{intuitionbox}
+
+HumanDex replaces the VR headset with body-worn IMU trackers (wrist, torso, legs) plus a Manus 5-finger glove for hand capture, enabling whole-body teleoperation of a humanoid with 5-finger dexterous hands (Wuji hands).
+
+\subsubsection{Learning-based hand retargeting}
+
+A 5-finger dexterous hand has $\sim$20 DoF, but the IMU setup only provides 5 fingertip positions. Mapping from 5 fingertip signals to 20-DoF joint commands is under-determined. Two approaches:
+\begin{itemize}
+  \item \textbf{Optimisation-based IK}: fast but fails on unusual hand poses (awkward joint configurations where no analytical solution exists).
+  \item \textbf{Learning-based MLP retargeting}: collect 20{,}000 frames in 20 min using the IK solver, filter out failure cases (abnormal joint angles, failed pinch motions), then train a small MLP to learn the mapping. The learned network handles configurations where IK fails, achieving higher teleoperation success rates.
+\end{itemize}
+
+\subsubsection{Human data augmentation}
+
+Because humans perform tasks faster than teleoperating a robot, HumanDex also explores augmenting robot training data with human demonstrations:
+\begin{itemize}
+  \item An egocentric camera is worn in a pose matched to the humanoid's head camera, aligning the observation space.
+  \item Robot proprioceptive states are approximated using retargeted hand joint estimates.
+  \item Policies trained on a \emph{mixture} of human demonstrations and robot teleoperation data consistently outperform policies trained on robot data alone.
+\end{itemize}

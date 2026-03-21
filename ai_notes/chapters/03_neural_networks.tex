@@ -5,17 +5,198 @@
 
 \subsection{Perceptrons \& MLPs}
 
-% TODO
+The \textbf{perceptron} is the simplest neural network unit---a linear classifier. Given input $\mathbf{x} \in \mathbb{R}^d$, it computes:
+\[
+\text{output} = \text{sign}(\mathbf{w} \cdot \mathbf{x} + b)
+\]
+where $\mathbf{w}$ is a weight vector and $b$ is a bias term. The perceptron can only separate linearly separable data; it famously fails on the \textbf{XOR problem}, where no linear decision boundary exists.
+
+\begin{intuitionbox}
+The XOR problem demonstrates that a single perceptron cannot learn a function whose decision boundary is non-linear. This limitation motivates the use of multiple layers.
+\end{intuitionbox}
+
+A \textbf{Multilayer Perceptron (MLP)} stacks multiple layers of neurons to overcome this limitation. The forward pass for layer $l$ is:
+\[
+\mathbf{h}^{(l)} = \sigma\left(\mathbf{W}^{(l)} \mathbf{h}^{(l-1)} + \mathbf{b}^{(l)}\right)
+\]
+where $\sigma$ is a non-linear activation function, $\mathbf{W}^{(l)}$ is the weight matrix, and $\mathbf{b}^{(l)}$ is the bias vector. The entire forward pass is a composition of affine transformations and non-linearities:
+\[
+\text{output} = \sigma_L(\mathbf{W}^{(L)} \sigma_{L-1}(\cdots \sigma_1(\mathbf{W}^{(1)} \mathbf{x} + \mathbf{b}^{(1)}) \cdots ) + \mathbf{b}^{(L)})
+\]
+
+\begin{notebox}
+\textbf{Depth vs.~Width:}
+Depth (number of layers) allows hierarchical feature composition and enables more complex function representations with fewer parameters. Width (neurons per layer) increases representational capacity but is less efficient---exponential function classes may require polynomial width but only logarithmic depth.
+\end{notebox}
+
 
 \subsection{Activation functions}
 
-% TODO
+Non-linear activation functions are essential to MLPs; without them, stacking layers produces only a linear transformation. Here are the most common choices:
+
+\begin{description}
+  \item[Sigmoid:] $\sigma(x) = \frac{1}{1 + e^{-x}}$, range $(0, 1)$. Historically popular but suffers from \textbf{vanishing gradients} for large $|x|$, since $\sigma'(x) \approx 0$ at extremes. Also not zero-centered, causing inefficient gradient updates.
+
+  \item[Tanh:] $\tanh(x)$, range $(-1, 1)$. Zero-centered and slightly better than sigmoid, but still prone to vanishing gradients.
+
+  \item[ReLU:] $\text{ReLU}(x) = \max(0, x)$. No vanishing gradients for $x > 0$ and computationally cheap (just a comparison). However, suffers from the \textbf{dying ReLU problem}---neurons can become stuck outputting zero if the pre-activation is consistently negative, then gradient flow is blocked.
+
+  \item[Leaky ReLU / PReLU:] $f(x) = \max(\alpha x, x)$ where $\alpha$ is a small constant (e.g., $0.01$). Addresses the dying ReLU problem by allowing a small negative slope.
+
+  \item[GELU:] $x \cdot \Phi(x)$, where $\Phi$ is the cumulative distribution function of the standard normal distribution. A smooth, differentiable approximation to $\text{ReLU} \cdot x$. Used in transformer-based models (BERT, GPT).
+
+  \item[SiLU / Swish:] $x \cdot \sigma(x)$. A self-gated, smooth activation that has gained popularity in modern architectures, including large language models.
+
+  \item[SwiGLU:] A gated variant combining Swish with a learnable linear gate. Used in modern large language models like LLaMA as the activation function in feed-forward layers.
+\end{description}
+
+\begin{warnbox}
+\textbf{Vanishing Gradients:} Sigmoid and tanh have derivative bounds that shrink in magnitude as layers deepen, causing gradients to exponentially decay during backpropagation. This made training deep networks difficult before the advent of ReLU and careful initialization.
+\end{warnbox}
+
 
 \subsection{Initialization strategies}
 
-% TODO
+Initializing weights carefully is crucial for training neural networks. Poor initialization can cause vanishing or exploding gradients.
+
+\begin{intuitionbox}
+The motivation is to keep the activation distribution roughly constant across layers. If activations grow exponentially, gradients explode; if they shrink, gradients vanish.
+\end{intuitionbox}
+
+\textbf{Xavier/Glorot Initialization} (suitable for sigmoid/tanh):
+\[
+\mathbf{W}^{(l)} \sim \text{Uniform}\left(-\sqrt{\frac{6}{n_{\text{in}} + n_{\text{out}}}}, \sqrt{\frac{6}{n_{\text{in}} + n_{\text{out}}}}\right)
+\]
+where $n_{\text{in}}$ and $n_{\text{out}}$ are the input and output dimensions of layer $l$. This maintains roughly constant variance of activations across layers.
+
+\textbf{He/Kaiming Initialization} (designed for ReLU):
+\[
+\mathbf{W}^{(l)} \sim \mathcal{N}\left(0, \sqrt{\frac{2}{n_{\text{in}}}}\right)
+\]
+The factor of 2 accounts for the fact that ReLU zeros out half the inputs on average, so we need higher variance to compensate.
+
+\textbf{Orthogonal Initialization:} Weights are initialized as random orthogonal matrices. Useful for recurrent networks and other settings where controlling gradient flow through matrix multiplications is critical.
+
+\begin{paperbox}[title={References: Initialization}]
+\begin{itemize}
+  \item Glorot \& Bengio (2010): Understanding the difficulty of training deep feedforward neural networks
+  \item He et al.~(2015): Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification
+\end{itemize}
+\end{paperbox}
+
 
 \subsection{Universal approximation theorem}
 
-% TODO
+The \textbf{Universal Approximation Theorem} (Hornik 1989, Cybenko 1989) states:
+\begin{notebox}
+A single hidden-layer MLP with a non-linear activation function and sufficiently many neurons can approximate any continuous function on a compact set to arbitrary precision.
+\end{notebox}
+
+This is a powerful theoretical result, but it comes with important caveats:
+
+\begin{itemize}
+  \item It does \emph{not} specify how many neurons are needed (often exponential in the input dimension).
+  \item It does \emph{not} guarantee that the function is learnable via gradient descent---only that a solution exists.
+  \item It does \emph{not} imply that shallow networks are always sufficient; depth can exponentially reduce the required size.
+\end{itemize}
+
+\begin{intuitionbox}
+\textbf{Practical Implication:} While shallow networks are theoretically expressive, \emph{depth is preferred over width} in practice. Deep networks can represent certain function classes (e.g., polynomials of degree $k$) with exponentially fewer parameters than shallow networks. This is why modern deep learning uses many layers.
+\end{intuitionbox}
+
+
+\subsection{Convolutional Neural Networks}
+
+Images and other spatial data have inherent structure: local regions are highly correlated, and patterns repeat across space (translation invariance). Fully connected layers are parameter-inefficient for such data.
+
+\textbf{The Convolution Operation:} A learnable filter (or kernel) slides over the input image, computing dot products. If the input is $\mathbf{X} \in \mathbb{R}^{H \times W \times C}$ and the kernel is $\mathbf{K} \in \mathbb{R}^{k_h \times k_w \times C}$, the output feature map at position $(i, j)$ is:
+\[
+\text{output}[i, j] = \sum_{h=0}^{k_h-1} \sum_{w=0}^{k_w-1} \sum_{c=0}^{C-1} \mathbf{K}[h, w, c] \cdot \mathbf{X}[i+h, j+w, c]
+\]
+
+\textbf{Key Properties:}
+\begin{description}
+  \item[Local Receptive Fields:] Each neuron in a convolutional layer sees only a small patch of the input (determined by kernel size), reducing parameters and enabling hierarchical feature learning.
+
+  \item[Weight Sharing:] The same kernel is applied at every position, further reducing parameters and introducing translation equivariance---if the input shifts, the feature map shifts in the same way.
+
+  \item[Translation Equivariance:] Convolutions preserve the spatial structure of translation.
+\end{description}
+
+\textbf{Pooling:} After convolution, pooling layers downsample the spatial resolution:
+\begin{itemize}
+  \item \textbf{Max pooling}: Outputs the maximum activation in each local window.
+  \item \textbf{Average pooling}: Outputs the mean activation in each window.
+\end{itemize}
+Pooling reduces parameters and computation, and adds a degree of translation invariance.
+
+\textbf{Typical CNN Architecture:}
+\[
+[\text{Conv} \to \text{BatchNorm} \to \text{ReLU} \to \text{Pool}]^* \to \text{Flatten} \to \text{FC layers}
+\]
+Convolutional blocks extract spatial features; later layers flatten and perform classification.
+
+\textbf{Receptive Field Growth:} Deeper layers see larger regions of the original input. A single neuron in layer $l$ integrates information from an increasingly large receptive field as $l$ increases, enabling hierarchical composition of features.
+
+\textbf{AlexNet (2012):} The first deep CNN to significantly outperform prior methods on ImageNet classification. AlexNet sparked the deep learning revolution, demonstrating that large, trained-on-GPU convolutional networks could achieve superhuman performance on complex visual tasks.
+
+\textbf{ResNets (Residual Networks):} Skip connections allow training much deeper networks (50--152 layers). A residual block computes:
+\[
+\mathbf{x}_{l+1} = \mathbf{x}_l + F(\mathbf{x}_l, \mathbf{W}_l)
+\]
+instead of the standard $\mathbf{x}_{l+1} = F(\mathbf{x}_l, \mathbf{W}_l)$. The residual connection allows gradients to flow directly through addition, sidestepping vanishing gradient problems in very deep networks.
+
+\begin{paperbox}[title={References: CNNs}]
+\begin{itemize}
+  \item LeCun et al.~(1998): Gradient-based learning applied to document recognition
+  \item Krizhevsky et al.~(2012): ImageNet Classification with Deep Convolutional Neural Networks (AlexNet)
+  \item He et al.~(2016): Deep Residual Learning for Image Recognition (ResNets)
+\end{itemize}
+\end{paperbox}
+
+
+\subsection{RNNs, LSTMs \& GRUs}
+
+Recurrent Neural Networks (RNNs) process sequences of arbitrary length by maintaining a hidden state that is updated at each time step:
+\[
+\mathbf{h}_t = \tanh(\mathbf{W}_h \mathbf{h}_{t-1} + \mathbf{W}_x \mathbf{x}_t + \mathbf{b})
+\]
+The same weights $\mathbf{W}_h$ and $\mathbf{W}_x$ are applied at every time step, allowing the network to share parameters across time and handle variable-length sequences.
+
+\textbf{The Vanishing Gradient Problem:} When backpropagating through time (BPTT), gradients are multiplied by $\mathbf{W}_h$ at each step. If $\|\mathbf{W}_h\| < 1$, gradients decay exponentially as we backprop further into the past, making it difficult to learn long-range dependencies. Conversely, if $\|\mathbf{W}_h\| > 1$, gradients explode.
+
+\textbf{Long Short-Term Memory (LSTM)} (Hochreiter \& Schmidhuert, 1997) addresses vanishing gradients via a \textbf{cell state} $\mathbf{c}_t$ and three gating mechanisms:
+
+\begin{description}
+  \item[Forget Gate:] $\mathbf{f}_t = \sigma(\mathbf{W}_f [\mathbf{h}_{t-1}, \mathbf{x}_t] + \mathbf{b}_f)$ --- controls how much of the previous cell state to retain.
+
+  \item[Input Gate \& Candidate:] $\mathbf{i}_t = \sigma(\mathbf{W}_i [\mathbf{h}_{t-1}, \mathbf{x}_t] + \mathbf{b}_i)$ and $\tilde{\mathbf{c}}_t = \tanh(\mathbf{W}_c [\mathbf{h}_{t-1}, \mathbf{x}_t] + \mathbf{b}_c)$ --- determine what new information to add.
+
+  \item[Output Gate:] $\mathbf{o}_t = \sigma(\mathbf{W}_o [\mathbf{h}_{t-1}, \mathbf{x}_t] + \mathbf{b}_o)$ --- controls which parts of the cell state to output.
+\end{description}
+
+The cell state and hidden state are updated as:
+\[
+\mathbf{c}_t = \mathbf{f}_t \odot \mathbf{c}_{t-1} + \mathbf{i}_t \odot \tilde{\mathbf{c}}_t
+\]
+\[
+\mathbf{h}_t = \mathbf{o}_t \odot \tanh(\mathbf{c}_t)
+\]
+where $\odot$ is element-wise multiplication. Crucially, the cell state is updated via addition (not overwriting), allowing gradients to flow directly through the cell without multiplicative interactions.
+
+\textbf{GRU (Gated Recurrent Unit):} A simplified variant of the LSTM with only two gates (reset and update). GRUs are computationally more efficient and often achieve similar performance to LSTMs.
+
+\textbf{Bidirectional RNNs:} Run a forward RNN and a backward RNN over the sequence, then concatenate their outputs. Bidirectional processing allows each position to attend to context from both past and future, and is standard in encoder-only architectures (BERT-era models).
+
+\begin{warnbox}
+\textbf{Note on Modern Usage:} While LSTMs and GRUs revolutionized sequence modeling, they are largely \emph{superseded by Transformer-based architectures} for NLP tasks. However, RNNs remain useful for time-series analysis, streaming applications, and scenarios where inference latency is critical.
+\end{warnbox}
+
+\begin{paperbox}[title={References: RNNs and LSTMs}]
+\begin{itemize}
+  \item Hochreiter \& Schmidhuber (1997): Long Short-Term Memory
+  \item Chung et al.~(2014): Empirical Evaluation of Gated Recurrent Neural Networks on Sequence Modeling
+  \item Graves (2013): Generating Sequences With Recurrent Neural Networks
+\end{itemize}
+\end{paperbox}
 

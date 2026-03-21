@@ -144,3 +144,48 @@ new requests are inserted immediately, filling the vacant slots.
 Combined with PagedAttention (variable-length KV cache pages), continuous batching
 enables high-throughput serving at arbitrary sequence lengths. vLLM, TensorRT-LLM, and
 SGLang all implement continuous batching as their default scheduling strategy.
+
+\subsection{Real-time action chunking for robot deployment}
+
+\begin{intuitionbox}
+VLA models deployed on real robots face a latency problem. The model must predict a sequence of actions (a ``chunk'') fast enough that the robot does not stall between chunks. A naïve chunk boundary causes a visible pause and a sharp joint-angle jump. This is distinct from the LLM serving problem but is fundamentally an \emph{inference scheduling} challenge.
+\end{intuitionbox}
+
+\subsubsection{The action-chunking gap}
+
+A VLA predicts an action chunk $[a_0, \ldots, a_H]$ covering a horizon $H$ timesteps. While the robot executes this chunk, the model must begin predicting the \emph{next} chunk. Because the model has inference latency $\Delta t_\text{inf}$, the second chunk is ready only at time $\Delta t_\text{inf}$ after the query was sent. If the robot has already consumed $k$ actions from the first chunk, a naïve switch from $a_k$ to $a_0'$ (the start of the second chunk) causes a discontinuous jump in joint angles — visible as a jitter or stall.
+
+The problem is compounded by the \textbf{overlap region}: when predicting the second chunk, the model does not know which sub-sequence of the first chunk the robot is currently executing, so it cannot smoothly continue from the right state.
+
+\subsubsection{Training-time action conditioning (TTAC)}
+
+Proposed in the paper \emph{Training-Time Action Conditioning for Efficient Real-Time Chunking} and adopted in the Size Zero humanoid system. The core idea is to treat the overlap as an \textbf{imputing} problem:
+
+\begin{enumerate}
+  \item During \textbf{training}, randomly mask a prefix of the target action sequence and condition the model on the \emph{known} suffix of the previous chunk (the actions already being executed). The model learns to predict only the \emph{remaining} unknown portion, consistent with the known prefix.
+  \item A \textbf{simulated inference delay} $\hat{\Delta t}$ is injected during training so the model learns to infer the missing overlap under realistic latency conditions.
+  \item At \textbf{inference time}, the known suffix of the currently-executing chunk is passed as conditioning, and the model fills in only the remaining unseen actions — ensuring the predicted trajectory smoothly continues from the robot's current execution state.
+\end{enumerate}
+
+\begin{paperbox}[title={Training-Time Action Conditioning (TTAC)}]
+Key insight: action chunking discontinuity is not a hardware problem but a \emph{conditioning} problem. By training the model to condition on partially-known action prefixes, the overlap region becomes a smooth interpolation rather than a hard boundary. No change to the robot hardware or inference pipeline is required — only a modified training objective.
+\end{paperbox}
+
+\subsubsection{Client-server architecture for real-time control}
+
+For humanoid whole-body control the system is split into two processes:
+
+\begin{itemize}
+  \item \textbf{Client} (on the robot): captures observations (RGB, joint states, tactile, IMU) at 30 Hz and streams them to the server. Consumes the latest available action from a shared action buffer and sends joint commands to the low-level controller.
+  \item \textbf{Server} (GPU desktop): runs two concurrent loops:
+    \begin{itemize}
+      \item \textbf{Control loop}: continuously reads the latest action from the inference buffer and forwards it to the client — always at 30 Hz regardless of inference speed.
+      \item \textbf{Inference loop}: runs TTAC-conditioned VLA inference to produce the next action chunk, using knowledge of currently-executing actions to guarantee trajectory continuity.
+    \end{itemize}
+\end{itemize}
+
+This architecture decouples the \emph{control rate} (fixed, robot-determined) from the \emph{inference rate} (GPU-bound), so inference latency never causes visible pauses or joint-angle jumps.
+
+\begin{notebox}
+\textbf{Observed effect}: without TTAC, the joint-angle trajectory shows a sharp discontinuity at every chunk boundary. With TTAC, the predicted trajectory's start smoothly matches the end of the previous trajectory, eliminating jitter. The control loop ensures the robot always receives a valid command even while inference is in-flight.
+\end{notebox}

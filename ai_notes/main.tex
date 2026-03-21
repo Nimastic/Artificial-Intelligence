@@ -124,6 +124,17 @@
 \fancyfoot[C]{\thepage}
 \renewcommand{\headrulewidth}{0.4pt}
 
+% --- Part formatting ---
+\titleformat{\part}[display]
+  {\clearpage\centering\normalfont\color{aiblue}}
+  {\large\bfseries Part \thepart}
+  {8pt}
+  {\huge\bfseries}
+\titlespacing*{\part}{0pt}{*2}{*4}
+
+% Ensure parts appear in TOC with correct depth
+\setcounter{tocdepth}{2}
+
 % --- Section formatting ---
 \titleformat{\section}[block]{\Large\bfseries}{}{0em}{}
 \newcommand{\sectionbreak}{\newpage}
@@ -150,6 +161,7 @@
 \newpage
 
 % ── PART I: FOUNDATIONS ─────────────────────────────────────────────
+\part{Foundations}
 \input{chapters/01_math_foundations}
 \input{chapters/02_classical_ml}
 \input{chapters/03_neural_networks}
@@ -157,83 +169,92 @@
 \input{chapters/05_training_tricks}
 
 % ── PART II: LLM ARCHITECTURE ───────────────────────────────────────
+\part{LLM Architecture}
 \input{chapters/06_transformer}
 \input{chapters/07_attention}
 \input{chapters/08_positional_enc}
 \input{chapters/09_tokenization}
 \input{chapters/10_scaling_laws}
-
-% ── PART III: LLM TRAINING & FINE-TUNING ────────────────────────────
-\input{chapters/11_pretraining}
-\input{chapters/12_finetuning}
-\input{chapters/13_rlhf_dpo}
 \input{chapters/14_moe}
+\input{chapters/48_ssm_mamba}
 
-% ── PART IV: INFERENCE & PROMPTING ──────────────────────────────────
-\input{chapters/15_inference}
-\input{chapters/16_quantization}
-\input{chapters/17_prompting}
-\input{chapters/18_rag}
-
-% ── PART V: AGENTS & PLANNING ───────────────────────────────────────
-\input{chapters/19_agents_fundamentals}
-\input{chapters/20_tool_use}
-\input{chapters/21_multi_agent}
-\input{chapters/22_agent_memory}
-\input{chapters/23_planning}
-
-% ── PART VI: WORLD MODELS ───────────────────────────────────────────
-\input{chapters/24_world_models_theory}
-\input{chapters/25_video_models}
-\input{chapters/26_embodied_ai}
-
-% ── PART VII: MULTIMODAL ────────────────────────────────────────────
-\input{chapters/27_vision_language}
-\input{chapters/28_diffusion}
-\input{chapters/29_audio_multimodal}
-
-% ── PART VIII: HARDWARE ─────────────────────────────────────────────
+% ── PART III: HARDWARE & SYSTEMS ────────────────────────────────────
+\part{Hardware \& Systems}
 \input{chapters/30_gpu_architecture}
 \input{chapters/31_tpu_asic}
 \input{chapters/32_memory_hierarchy}
-\input{chapters/33_distributed_training}
-\input{chapters/34_inference_hw}
-
-% ── PART IX: AI ON OS & EDGE ────────────────────────────────────────
-\input{chapters/35_on_device}
-\input{chapters/36_openclaw_os}
-\input{chapters/37_embedded_ai}
-\input{chapters/38_edge_deploy}
-
-% ── PART X: SYSTEMS PROGRAMMING ─────────────────────────────────────
 \input{chapters/39_cuda_kernels}
 \input{chapters/40_triton}
 \input{chapters/41_profiling}
 
-% ── PART XI: ALIGNMENT & SAFETY ─────────────────────────────────────
-\input{chapters/42_safety}
+% ── PART IV: TRAINING AT SCALE ──────────────────────────────────────
+\part{Training at Scale}
+\input{chapters/11_pretraining}
+\input{chapters/33_distributed_training}
+
+% ── PART V: POST-TRAINING & ALIGNMENT ───────────────────────────────
+\part{Post-Training \& Alignment}
+\input{chapters/12_finetuning}
+\input{chapters/13_rlhf_dpo}
 \input{chapters/43_constitutional_ai}
+
+% ── PART VI: INFERENCE & DEPLOYMENT ─────────────────────────────────
+\part{Inference \& Deployment}
+\input{chapters/15_inference}
+\input{chapters/49_test_time_compute}
+\input{chapters/16_quantization}
+\input{chapters/34_inference_hw}
+\input{chapters/35_on_device}
+\input{chapters/37_embedded_ai}
+\input{chapters/38_edge_deploy}
+
+% ── PART VII: PROMPTING & RETRIEVAL ─────────────────────────────────
+\part{Prompting \& Retrieval}
+\input{chapters/17_prompting}
+\input{chapters/18_rag}
+
+% ── PART VIII: AGENT SYSTEMS ────────────────────────────────────────
+\part{Agent Systems}
+\input{chapters/19_agents_fundamentals}
+\input{chapters/20_tool_use}
+\input{chapters/22_agent_memory}
+\input{chapters/23_planning}
+\input{chapters/21_multi_agent}
+
+% ── PART IX: AGENT PLATFORMS & TOOLING ──────────────────────────────
+\part{Agent Platforms \& Tooling}
+\input{chapters/36_openclaw_os}
+\input{chapters/52_coding_agents_ides}
+\input{chapters/53_agentic_platforms}
+
+% ── PART X: MULTIMODAL & WORLD MODELS ───────────────────────────────
+\part{Multimodal \& World Models}
+\input{chapters/27_vision_language}
+\input{chapters/28_diffusion}
+\input{chapters/29_audio_multimodal}
+\input{chapters/24_world_models_theory}
+\input{chapters/25_video_models}
+\input{chapters/26_embodied_ai}
+
+% ── PART XI: SAFETY & INTERPRETABILITY ──────────────────────────────
+\part{Safety \& Interpretability}
+\input{chapters/42_safety}
 \input{chapters/44_interpretability}
 
 % ── PART XII: EVALUATION ─────────────────────────────────────────────
+\part{Evaluation}
 \input{chapters/45_eval_methodology}
 \input{chapters/46_benchmarks}
 \input{chapters/47_agent_evals}
 
 % ── PART XIII: FRONTIERS ─────────────────────────────────────────────
-\input{chapters/48_ssm_mamba}
-\input{chapters/49_test_time_compute}
+\part{Frontiers}
 \input{chapters/50_neurosymbolic}
 \input{chapters/51_paper_notes}
 
-% ── PART XIV: AI DEVELOPER TOOLS ────────────────────────────────────
-\input{chapters/52_coding_agents_ides}
-\input{chapters/53_agentic_platforms}
-
-% ── PART XV: UNIVERSITY MODULES ─────────────────────────────────────
+% ── PART XIV: REFERENCE ──────────────────────────────────────────────
+\part{Reference}
 \input{chapters/54_uni_modules}
-
-% ── PART XVI: GLOSSARY & REFERENCE ──────────────────────────────────
 \input{chapters/55_llm_agent_glossary}
 
 \end{document}

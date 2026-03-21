@@ -5,13 +5,159 @@
 
 \subsection{How to use this chapter}
 
-% TODO
+This chapter is a running log of papers read in depth. Each entry follows the template
+below. Cross-references to the relevant technical chapters are given where the concepts
+are treated more formally.
 
 \subsection{Paper template}
 
-% TODO
+\begin{itemize}
+  \item \textbf{Title / Authors / Venue / Year}
+  \item \textbf{One-sentence summary}
+  \item \textbf{Key claims and findings}
+  \item \textbf{Technical approach}
+  \item \textbf{Limitations / open questions}
+  \item \textbf{Cross-references}
+\end{itemize}
 
 \subsection{Reading list}
 
-% TODO
+% ── EVO 2 ───────────────────────────────────────────────────────────
 
+\begin{paperbox}[title={EVO\,2: Genome Modelling and Design Across All Domains of Life
+  (Brixi et al.\ 2025, Arc Institute / Together AI / Stanford, \textit{Nature})}]
+
+\textbf{One-sentence summary.} A 40-billion-parameter biological foundation model
+trained on 9 trillion DNA base pairs that learns the ``grammar'' of life purely from
+raw sequences, enabling zero-shot mutation effect prediction, cancer variant
+classification, and \textit{de novo} generation of functional genomes.
+
+\medskip
+\textbf{Framing.} DNA is a four-letter alphabet (G, C, A, T) read in triplets (codons).
+Just as LLMs learn language from raw text with next-token prediction, EVO\,2 applies
+the same causal language-modelling objective to nucleotide sequences. The difference:
+instead of internet text, the training signal is 9 trillion base pairs from the
+\textbf{Open Genome\,2} dataset spanning bacteria, archaea, fungi, plants, and animals.
+
+\medskip
+\textbf{Architecture.} EVO\,2 uses a hybrid long-convolution / attention architecture
+(in the \textbf{StripedHyena} family) achieving a \textbf{1-million-token context
+window} at single-nucleotide resolution. Transformer self-attention alone would require
+$O(n^2)$ memory for $n = 10^6$ --- infeasible. The Hyena convolutional operator
+(related to SSMs; see Chapter~48) reduces this to near-linear complexity, enabling
+whole-gene and whole-chromosome context.
+
+\medskip
+\textbf{Key findings.}
+
+\textit{1. Zero-shot mutation effect prediction.} The model was never given labels about
+which mutations are harmful. Yet it correctly flags:
+\begin{itemize}
+  \item \textbf{Start/stop codon mutations} --- changing the start codon (ATG) prevents
+    protein synthesis; changing a stop codon causes read-through. EVO\,2 assigns these
+    very low probability of existing in nature.
+  \item \textbf{Shine-Dalgarno / Kozak sequences} --- ribosome landing-pad sequences
+    flanking the start codon in bacteria (Shine-Dalgarno) and eukaryotes (Kozak/KAC).
+    Mutations in these regions are correctly flagged as highly damaging.
+  \item \textbf{Synonymous vs.\ frameshift mutations} --- synonymous: one letter
+    changed, same amino acid encoded (benign, correctly recognised); frameshift:
+    insertion/deletion shifts every downstream codon (catastrophic, correctly flagged).
+  \item \textbf{Ciliate code divergence} --- ciliates reassigned the stop codon TGA to
+    an amino acid. EVO\,2 infers this non-standard code from local sequence context
+    without being told the organism's identity.
+\end{itemize}
+
+\textit{2. Why does zero-shot work?} The implicit supervision signal is
+\textbf{evolutionary selection}: every sequence in the dataset belongs to a living
+organism. Lethal mutations are absent from the gene pool by definition. By learning the
+distribution over 9 trillion base pairs, EVO\,2 learns that conserved sequences are
+functionally essential and that unseen sequences are likely deleterious. Evolution
+provides the free label.
+
+\textit{3. Human cancer variant classification.} Tested on ClinVar BRCA1/BRCA2 data
+(pathogenic vs.\ benign variants). EVO\,2 had never seen medical records or cancer
+annotations, yet correctly classified clinically dangerous BRCA mutations --- showing
+evolutionary conservation directly correlates with disease-causing variants.
+
+\textit{4. De novo genome generation.}
+\begin{itemize}
+  \item \textbf{Human mitochondria} ($\approx$16,000\,bp): generated a complete novel
+    mitochondrial sequence. MitoZ analysis confirmed correct gene architecture
+    (protein-coding genes, tRNAs, rRNAs). AlphaFold\,3 further validated that
+    generated proteins folded correctly and physically interlocked.
+  \item \textbf{\textit{Mycoplasma genitalium}} ($\approx$580,000\,bp): complete
+    functional genome of the smallest free-living bacterium.
+  \item \textbf{\textit{Saccharomyces cerevisiae}} ($\approx$12\,Mbp): complete
+    eukaryotic genome --- yeast is phylogenetically closer to humans than to bacteria.
+\end{itemize}
+
+\medskip
+\textbf{Safety.} All eukaryotic virus sequences were excluded from training data
+(including USDA Select Agents). Verification used \textbf{perplexity probing}: feeding
+dangerous viral sequences to the trained model yielded high perplexity (the model
+had no learned representation of those sequences), and generation attempts produced
+incoherent gibberish. See Chapter~42.
+
+\medskip
+\textbf{Open source.} Weights (40B, 82\,GB), Open Genome\,2 dataset (virus-excluded),
+training/fine-tuning code --- all on GitHub and Hugging Face.
+
+\medskip
+\textbf{Limitations.}
+\begin{itemize}
+  \item Eukaryotic chromosomes ($>$100\,Mbp) exceed the 1M-token context window.
+  \item Learned from observed diversity, not first-principles biochemistry; may miss
+    scenarios outside the training distribution.
+  \item Open-sourcing the training pipeline creates a dual-use risk: a malicious actor
+    could fine-tune on restricted viral sequences to produce a capable bioweapon model.
+\end{itemize}
+
+\medskip
+\textbf{Cross-refs.} Ch~48 (SSMs / Hyena), Ch~44 (zero-shot probing), Ch~42
+(training-data exclusion as safety), Ch~11 (evolutionary signal as implicit
+supervision).
+
+\end{paperbox}
+
+% ── Size Zero ───────────────────────────────────────────────────────────────
+\begin{paperbox}[title={Size Zero: Open Foundation Model Towards Universal Humanoid
+  Loco-Manipulation (Wang et al.\ 2025, USC)}]
+
+\textbf{One-sentence summary.} A humanoid whole-body controller that uses egocentric human video for VLM pretraining, an MM-DiT action expert fine-tuned on robot teleoperation data, and training-time action chunking for smooth real-time deployment — achieving a 40\% improvement over the prior state of the art (Gr00T N1.6) using 10$\times$ less pretraining data.
+
+\medskip
+\textbf{Framing.} Locomotion in humanoid robots is largely solved by simulation-based RL. The hard remaining problem is \emph{loco-manipulation}: executing dexterous, language-conditioned manipulation tasks while the robot is mobile. Current VLA models target $\sim$18 DoF tabletop arms; the Unitree G1 humanoid has $\sim$43 DoF. Size Zero addresses both the data and model bottlenecks simultaneously.
+
+\medskip
+\textbf{Key findings.}
+\begin{enumerate}
+  \item \textbf{Egocentric human video as pretraining data}: cheaper and better-aligned (viewpoint + action space) than internet video or simulation. 5 hrs/person/day with a simple stereo cap; 1{,}000 hrs collected, targeting 10{,}000 hrs.
+  \item \textbf{FAST tokenizer for action discretisation}: continuous 48-D hand vectors (9-DoF wrist + 3 fingertips $\times$ 5 fingers) compressed to 13 discrete tokens via DCT $\to$ quantisation $\to$ BPE; enables efficient pretraining with a standard language modelling objective.
+  \item \textbf{MM-DiT action head outperforms naïve DiT}: concatenating VLM and action tokens at the start of the diffusion transformer and using joint self-attention (vs.\ late fusion) is the single biggest model-architecture win. Borrowed from video generation (SD3, Flux); underused in robotics.
+  \item \textbf{Two-stage training}: frozen VLM backbone (pre-trained on egocentric video) + flow-matching action expert (fine-tuned on 30 hrs of Humanoid Everyday teleoperation data).
+  \item \textbf{Training-time action conditioning (TTAC)}: resolves the action-chunk boundary jitter problem at inference time by conditioning the model on already-executing actions and simulating inference delay during training. See Ch~15 for details.
+\end{enumerate}
+
+\medskip
+\textbf{Deployment architecture.} Upper body: multi-target IK from predicted wrist poses. Lower body: AMO-style RL locomotion policy. Client (robot at 30 Hz) $\leftrightarrow$ server (GPU) with dual control/inference loops for latency-free execution.
+
+\medskip
+\textbf{Humanoid Everyday companion dataset.}
+10{,}000+ trajectories, 3M frames, 260 tasks on Unitree G1 and H1; 30 Hz RGB + depth + LiDAR + joint states + tactile + IMU. Control loop latency 20 ms (down from 500 ms via I/O offloading). Includes a cloud evaluation platform for labs without physical robots.
+
+\medskip
+\textbf{HumanDex side contribution.} IMU-based whole-body teleoperation (no VR headset). Learning-based MLP retargeting from 5 fingertip IMUs to 20-DoF hand joints outperforms optimisation-based IK on unusual poses. Human demonstration data augments robot data to improve policy performance.
+
+\medskip
+\textbf{Limitations / open questions.}
+\begin{itemize}
+  \item Evaluation environment is not fully zero-shot: tasks and backgrounds are seen in training. Object positions and orientations vary but not the task type itself.
+  \item Force/torque feedback not yet incorporated; limits performance on compliant grasping tasks.
+  \item Scaling egocentric data beyond lab scale requires crowd-sourcing or data vendors.
+  \item The model handles 260 tasks; complex long-horizon household tasks (e.g.\ full meal preparation) remain open.
+\end{itemize}
+
+\medskip
+\textbf{Cross-refs.} Ch~26 (embodied AI, VLAs, whole-body control, HumanDex), Ch~15 (TTAC / real-time action chunking), Ch~09 (FAST tokenizer / action discretisation), Ch~12 (two-stage fine-tuning), Ch~24 (world models as policy evaluators).
+
+\end{paperbox}

@@ -92,6 +92,48 @@ performance beyond the model's true generalisation capability.
   result was invalid regardless of the magnitude of overlap.
 \end{warnbox}
 
+\subsection{Long-context evaluation: needle-in-a-haystack}
+
+Standard benchmarks test short-context reasoning. A model that scores well on MMLU
+might still ``forget'' information placed 100K tokens earlier in its context window.
+\textbf{Needle-in-a-haystack (NIAH)} is the canonical stress test for long-context
+fidelity.
+
+\textbf{Protocol.}
+\begin{enumerate}
+  \item Fill the context with a large volume of semantically neutral ``haystack'' text
+    (e.g.\ randomly generated prose, or a large document corpus).
+  \item Insert a short, specific ``needle'' --- a unique fact or sequence --- at a
+    controlled position within the haystack.
+  \item Ask the model to retrieve the needle. Vary two dimensions:
+    \begin{itemize}
+      \item \textbf{Context length:} test at 1K, 4K, 16K, 64K, 128K, 1M tokens.
+      \item \textbf{Depth:} position the needle at the very start, middle, or end of
+        the context.
+    \end{itemize}
+\end{enumerate}
+
+\textbf{Findings.} Most models show a characteristic ``lost in the middle'' failure
+mode: retrieval accuracy drops sharply when the needle is placed in the middle of
+a long context, while start and end positions are retrieved more reliably. This is
+because transformers distribute attention unevenly across positions --- recency bias
+and primacy bias both apply.
+
+\begin{intuitionbox}
+  A model that scores 99\% on short-context benchmarks may score 60\% on NIAH at
+  128K tokens. For agents that must track facts across long tool-use sessions, NIAH
+  performance is a practical reliability metric --- not just a toy benchmark.
+\end{intuitionbox}
+
+\textbf{Multi-needle variants.} Extend the test to multiple needles of varying
+relevance to probe selective retrieval rather than simple recall.
+
+\textbf{Domain adaptation.} NIAH generalises beyond text. The EVO\,2 biological
+foundation model used a genomic NIAH test: a specific 100-nucleotide sequence was
+embedded inside 1 million random DNA base pairs; EVO\,2 retrieved it perfectly,
+validating that its million-token context window was functional, not just nominal.
+See Chapter~51.
+
 \subsection{Human vs automated evaluation}
 
 \begin{center}
